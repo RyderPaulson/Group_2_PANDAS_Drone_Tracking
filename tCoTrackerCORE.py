@@ -9,11 +9,13 @@ import matplotlib.pyplot as plt
 from CoTrackerCORE import CoTrackerCORE
 from cotracker.utils.visualizer import Visualizer, read_video_from_path
 
+# Set the default device, if an Nvidia GPU is present it will be used where possible
 DEFAULT_DEVICE = (
     "cuda"
     if torch.cuda.is_available()
     else "mps" if torch.backends.mps.is_available() else "cpu"
 )
+
 
 class test_CoTrackerCORE(unittest.TestCase):
     def t_ds_pan_cut(self):
@@ -26,37 +28,40 @@ class test_CoTrackerCORE(unittest.TestCase):
         p_select = PointSelecter()
 
         # Setup CoTracker
-        query_point = [882, 386]
-        query_frame = 0
-        # query_point = p_select.select_points(video_frames[0].copy())
-        cotracker = CoTrackerCORE(query_point, query_frame=query_frame)
+        query = torch.tensor([
+            [0, 882, 386],
+        ]).float()
+        cotracker = CoTrackerCORE(query)
 
-        video_frames = video_frames[:-(len(video_frames) % cotracker.model.step)]
+        # Remove frames at the end of the video so that it is evenly divisible with the model step
+        video_frames = video_frames[: -(len(video_frames) % cotracker.model.step)]
 
         if not os.path.isfile(video_path):
             self.fail("Video file does not exist")
 
+        # Iterate through video
         for i, frame in enumerate(video_frames):
             pred_tracks, pred_visibility = cotracker.run_tracker(frame)
 
-            p_frames_analyzed(i, 25)
+            print_frames_analyzed(i, 25)
 
         video = torch.tensor(np.stack(video_frames), device=DEFAULT_DEVICE).permute(
             0, 3, 1, 2
         )[None]
 
-        vis = Visualizer(save_dir="./media", pad_value=10, linewidth=3)
+        # Visualize the predicted tracks.
+        vis = Visualizer(save_dir="./media", pad_value=10, linewidth=3, mode="cool")
+        vis.visualize(video, pred_tracks, pred_visibility, filename="t_ds_pan_cut")
 
-        vis.visualize(video, pred_tracks, pred_visibility, filename="t_ds_pan_cut", query_frame=query_frame)
-
-def p_frames_analyzed(i, modu):
+def print_frames_analyzed(i, modu):
     if i % modu == 0:
         print(f"{i} frames processed")
 
-class PointSelecter():
+class PointSelecter:
     """
     Implementation of Bishoy's point selection utility in an object-oriented format.
     """
+
     def __init__(self):
         # Global variables for point selection
         self.selected_points = []

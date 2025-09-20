@@ -18,14 +18,11 @@ class CoTrackerCORE:
     # ----------------------- Public Methods -----------------------
 
     def __init__(
-        self, query_point, query_frame=0, checkpoint_path=None
+        self, query, checkpoint_path=None
     ):
         """
 
-        :param query_point: -> Coordinates for the point to track. With the current implementation, it is only possible to
-        track one point at a time.
-        :param query_frame: -> The time coordinate for the query.
-                               Default: 0
+        :param query: -> The query for CoTracker to track already in T, H, W tensor form where T is the time.
         :param checkpoint_path: -> The path for the checkpoint to load the model from.
                                    Default: None which loads a fresh model from Torch Hub.
         """
@@ -39,21 +36,16 @@ class CoTrackerCORE:
                 DEFAULT_DEVICE
             )
 
-        # Put query into [T, X, Y] format where T is time
-        self.query_point = torch.tensor(
-            [
-                [query_frame, query_point[0], query_point[1]],
-            ]
-        )
+        # Set query and move to GPU if available
+        self.query = query
         if torch.cuda.is_available():
-            self.query_point = self.query_point.cuda()
-        self.query_frame = query_frame
+            self.query = self.query.cuda()
 
         # Frame buffer for windowed processing
         self.frame_count = 0
         self.window_frames = []
 
-        # Property for most recently visualized frame
+        # Initial conditions
         self.is_first_step = True
         self.pred_tracks = torch.tensor([0])
         self.pred_visibility = torch.tensor([0])
@@ -69,10 +61,9 @@ class CoTrackerCORE:
         """
         Collect a new frame and if the frame buffer is full, process them.
         :param new_frame:
-        :return [x, y] prediction location:
+        :return pred_tracks, pred_visibility: -> the predictions and visibility of tracked points.
         """
         self.frame_count += 1
-
         self.window_frames.append(new_frame)
 
         # Dump old frames. The program should hold 3x the model step frames in memory at a time.
@@ -98,6 +89,4 @@ class CoTrackerCORE:
             .permute(0, 3, 1, 2)[None]
         )  # (1, T, 3, H, W)
 
-        # TODO Get CoTracker to track a single point rather than a grid
-        # return self.model(video_chunk, is_first_step=self.is_first_step, queries=self.query_point[None])
-        return self.model(video_chunk, is_first_step=self.is_first_step, grid_size=30)
+        return self.model(video_chunk, is_first_step=self.is_first_step, queries=self.query[None])
