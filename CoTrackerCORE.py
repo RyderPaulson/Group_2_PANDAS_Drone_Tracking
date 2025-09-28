@@ -3,6 +3,12 @@ import numpy as np
 
 from cotracker.predictor import CoTrackerPredictor
 
+
+#TODO When processing a longer video, the model uses a lot of VRAM. Add a system to force the model to reset it's
+# checkpoint so that the VRAM is cleared. This is super important if we're processing live video.
+#TODO Implement reset system so that if the tracker is detected as losing the object it is able to reset itself without
+# making an entirely new instance of itself.
+
 DEFAULT_DEVICE = (
     "cuda"
     if torch.cuda.is_available()
@@ -18,11 +24,12 @@ class CoTrackerCORE:
     # ----------------------- Public Methods -----------------------
 
     def __init__(
-        self, query, checkpoint_path=None
+        self, query_point, query_frame=0, checkpoint_path=None
     ):
         """
 
-        :param query: -> The query for CoTracker to track already in T, H, W tensor form where T is the time.
+        :param query_point: -> The point to track in [x, y] format.
+        :param query_frame: -> The frame used for querying CoTracker.
         :param checkpoint_path: -> The path for the checkpoint to load the model from.
                                    Default: None which loads a fresh model from Torch Hub.
         """
@@ -36,8 +43,10 @@ class CoTrackerCORE:
                 DEFAULT_DEVICE
             )
 
-        # Set query and move to GPU if available
-        self.query = query
+        # Put query into T, H, W format and move to GPU if available
+        self.query = torch.tensor([
+            [query_frame, query_point[0], query_point[1]],
+        ]).float()
         if torch.cuda.is_available():
             self.query = self.query.cuda()
 
@@ -90,3 +99,11 @@ class CoTrackerCORE:
         )  # (1, T, 3, H, W)
 
         return self.model(video_chunk, is_first_step=self.is_first_step, queries=self.query[None])
+
+    def _reset_cotracker(self):
+        """
+        When left to run on its own, cotracker will infinitely take up more ram because it is expanding it's context
+        window. This function will reload the base checkpoint to reset CoTracker's ram usage.
+        :return:
+        """
+        pass

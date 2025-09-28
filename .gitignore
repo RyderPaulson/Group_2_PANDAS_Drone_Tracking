@@ -2,6 +2,11 @@
 /media/
 /data/
 /co-tracker/
+/GroundingDINO/
 /AutoVrtlEnv/
-/simulate_drone_tracking.slx.original
+/simulation/simulate_drone_tracking.slx.original
+/.idea/
+/Grounded-Segment-Anything/
+/GroundingDINO/
+/.vscode/
 /.idea/

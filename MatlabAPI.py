@@ -4,7 +4,7 @@ import os
 from CoTrackerCORE import CoTrackerCORE as CoTracker
 
 
-class CoTrackerAPI:
+class MatlabAPI:
 
     def __init__(
         self,

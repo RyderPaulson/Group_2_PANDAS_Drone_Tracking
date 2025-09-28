@@ -17,21 +17,18 @@ DEFAULT_DEVICE = (
 )
 
 
-class test_CoTrackerCORE(unittest.TestCase):
-    def t_ds_pan_cut(self):
+class TestCoTrackerCORE(unittest.TestCase):
+    def test_ds_pan_cut(self):
         # Get video
         video_path = "./media/ds_pan_cut.mp4"
         video_frames = []
         for frame in iio.imiter(video_path):
             video_frames.append(frame)
 
-        p_select = PointSelecter()
-
         # Setup CoTracker
-        query = torch.tensor([
-            [0, 882, 386],
-        ]).float()
-        cotracker = CoTrackerCORE(query)
+        query_point = [882, 386]
+        query_frame = 0
+        cotracker = CoTrackerCORE(query_point, query_frame=query_frame)
 
         # Remove frames at the end of the video so that it is evenly divisible with the model step
         video_frames = video_frames[: -(len(video_frames) % cotracker.model.step)]
@@ -50,8 +47,84 @@ class test_CoTrackerCORE(unittest.TestCase):
         )[None]
 
         # Visualize the predicted tracks.
-        vis = Visualizer(save_dir="./media", pad_value=10, linewidth=3, mode="cool")
+        vis = Visualizer(save_dir="./media", pad_value=10, linewidth=3, mode="cool", fps=30)
         vis.visualize(video, pred_tracks, pred_visibility, filename="t_ds_pan_cut")
+
+    def test_ds_pan_full(self):
+        test_name = "t_ds_pan_full"
+        src_name = "ds_pan.mp4"
+
+        # Get video
+        video_path = "./media/" + src_name
+        video_frames = []
+        for frame in iio.imiter(video_path):
+            video_frames.append(frame)
+
+        # Setup CoTracker
+        query_point = [882, 386]
+        query_frame = 0
+        cotracker = CoTrackerCORE(query_point, query_frame=query_frame)
+
+        # Remove frames at the end of the video so that it is evenly divisible with the model step
+        video_frames = video_frames[: -(len(video_frames) % cotracker.model.step)]
+
+        if not os.path.isfile(video_path):
+            self.fail("Video file does not exist")
+
+        # Iterate through video
+        for i, frame in enumerate(video_frames):
+            pred_tracks, pred_visibility = cotracker.run_tracker(frame)
+
+            print_frames_analyzed(i, 25)
+
+        video = torch.tensor(np.stack(video_frames), device=DEFAULT_DEVICE).permute(
+            0, 3, 1, 2
+        )[None]
+
+        # Visualize the predicted tracks.
+        vis = Visualizer(save_dir="./media", pad_value=10, linewidth=3, mode="cool", fps=30)
+        vis.visualize(video, pred_tracks, pred_visibility, filename=test_name)
+
+    def test_ds_frame(self):
+        test_name = "ds_frame"
+        src_name = "ds_frame.mp4"
+
+        # Get video
+        video_path = "./media/" + src_name
+        video_frames = []
+        for frame in iio.imiter(video_path):
+            video_frames.append(frame)
+
+        # Setup CoTracker
+        query_point = [882, 386] # TODO Update
+        query_frame = 0
+        cotracker = CoTrackerCORE(query_point, query_frame=query_frame)
+
+        # Remove frames at the end of the video so that it is evenly divisible with the model step
+        video_frames = video_frames[: -(len(video_frames) % cotracker.model.step)]
+
+        if not os.path.isfile(video_path):
+            self.fail("Video file does not exist")
+
+        # Iterate through video
+        for i, frame in enumerate(video_frames):
+            pred_tracks, pred_visibility = cotracker.run_tracker(frame)
+
+            print_frames_analyzed(i, 25)
+
+        video = torch.tensor(np.stack(video_frames), device=DEFAULT_DEVICE).permute(
+            0, 3, 1, 2
+        )[None]
+
+        # Visualize the predicted tracks.
+        vis = Visualizer(
+            save_dir="./media", pad_value=10, linewidth=3, mode="cool", fps=30
+        )
+        vis.visualize(video, pred_tracks, pred_visibility, filename=test_name)
+
+
+# Helper functions
+
 
 def print_frames_analyzed(i, modu):
     if i % modu == 0:
