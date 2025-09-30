@@ -1,6 +1,16 @@
+# PyPi packages
+import torch
+
+# From cloned repositories
 from groundingdino.util.inference import load_model, predict
 
-class DroneDetector:
+DEFAULT_DEVICE = (
+    "cuda"
+    if torch.cuda.is_available()
+    else "mps" if torch.backends.mps.is_available() else "cpu"
+)
+
+class GroundedDINOCORE:
     """
     Class for detecting a drone in an image using GroundingDINO.
     """
@@ -13,6 +23,7 @@ class DroneDetector:
         """
         self.model = load_model("GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py",
                                 "GroundingDINO/weights/groundingdino_swint_ogc.pth")
+        self.model.to(DEFAULT_DEVICE)
         self.text_prompt = text_prompt
         self.box_threshold = box_threshold
         self.text_threshold = text_threshold
