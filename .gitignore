@@ -10,3 +10,7 @@
 /GroundingDINO/
 /.vscode/
 /.idea/
+/simulation/slprj/
+/simulation/simulate_drone_tracking.slx.original
+/simulation/simulate_drone_tracking.slx.r2025a
+/BishoyPointTracker.py
