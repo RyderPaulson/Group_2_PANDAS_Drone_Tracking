@@ -1,13 +1,12 @@
-% Need to wait until core CoTracker implementation is finished to do. 
-
-classdef CoTrackerSystem < matlab.System
+classdef TrackingSystem < matlab.System
     % CoTracker3 MATLAB System Object
     % Interfaces with Python implementation of the CoTracker algorithm to
     % track a point on the frame. 
     
     % Private properties
     properties(Access = private)
-        python_module
+        py_module
+        py_env
     end
 
     %% Protected Methods
@@ -15,7 +14,7 @@ classdef CoTrackerSystem < matlab.System
         function setupImpl(obj)
             % Load Python interpreter and import interface algorithm.
 
-            % Recieve inputed query point. And set it.
+            % Run initial tracking
 
             % Perform any other necessary startup steps for the co-tracker
             % algorithm. 
@@ -28,12 +27,12 @@ classdef CoTrackerSystem < matlab.System
         
         function num = getNumInputsImpl(~)
             % Define total number of inputs for system with optional inputs
-            num = 2;
+            num = 1;
         end
         
         function num = getNumOutputsImpl(~)
             % Define the total number of output ports
-            num = 2;
+            num = 1;
         end
         
         function icon = getIconImpl(~)
@@ -44,27 +43,6 @@ classdef CoTrackerSystem < matlab.System
         function name = getOutputNamesImpl(obj)
             % Return output port names for System block
             name = 'Annotated Video';
-        end
-    end
-    
-    %% Public Methods for Query Control
-    methods
-        function success = setQuery(obj, x, y)
-            % Set Point of Interest coordinates
-            % Args:
-            %   x: X coordinate in pixels
-            %   y: Y coordinate in pixels
-            % Returns:
-            %   success: boolean indicating if query was set successfully
-            
-            success = false;
-        end
-        
-        function [position] = getCurrentPOIPosition(obj)
-            % Get current POI position and visibility
-            % Returns:
-            %   position: [x, y] coordinates or empty if not available
-            
         end
     end
     
