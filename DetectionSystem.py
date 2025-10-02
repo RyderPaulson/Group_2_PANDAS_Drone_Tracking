@@ -1,5 +1,6 @@
 # PyPi packages
 import torch
+import numpy as np
 
 # From cloned repositories
 from groundingdino.util.inference import load_model, predict
@@ -39,24 +40,47 @@ class GroundedDINOCORE:
 
         return boxes, logits, phrases
 
-class FindSensor:
+def find_sensor(img, box, target_color=[128, 128, 128], th=0.3):
     """
-
+    Given a bounding box around the drone as obtained by GroundingDINO, will find the specific point to feed into
+    CoTracker.
+    Note, since color is an important distinguisher, we do not convert the image to gray.
+    :param img: -> image to annotate. Must be in RGB format
+    :param box: -> can either be in tensor form or already converted to a 1x4 numpy array.
+    :return query_point: -> [x, y] coordinates
     """
-    def __init__(self):
-        # Initializes sensor locating system
-        pass
+    if type(box) == torch.Tensor:
+        box = box.numpy()[0]
 
-    def mask(self):
-        """
-        Creates a mask over the appropriately color tape only looking within the box identified by GroundingDINO.
-        :return:
-        """
-        pass
+    # Give that the box dimensions are given as a normalized value from 0-1 find the actual pixel values of the box
+    img_shape = img.shape
+    img_h = img_shape[0]
+    img_w = img_shape[1]
+    box = np.array([img_w * box[0] - 0.5*(img_w * box[2]),
+                    img_h * box[1] - 0.5*(img_h * box[3]),
+                    img_w * box[0] + 0.5*(img_w * box[2]),
+                    img_h * box[1] + 0.5*(img_h * box[3])])
+    box = box.astype(int)
 
-    def find_point(self):
-        """
-        Averages all the points in the mask to find the specific point that CoTracker will track.
-        :return:
-        """
-        pass
+    # Create a max of just the bounding box
+    rows, cols = np.ogrid[:img.shape[0], :img.shape[1]]
+    box_mask = (
+        (rows >= box[1]) & (rows < box[3]) & (cols >= box[0]) & (cols < box[2])
+    )
+
+    # Define threshold values
+    low_th = [int(i - i * th) for i in target_color]
+    high_th = [int(i + i * th) for i in target_color]
+
+    # Create mask with all pixels within the threshold
+    th_mask = np.all((low_th <= img) & (img <= high_th), axis=-1)
+
+    # Combine the masks and convert to just be list of coordinates
+    mask = box_mask & th_mask
+    coordinates = np.argwhere(mask)
+
+    # Average all identified points in the mask to find the query point
+    query_point = np.mean(coordinates, axis=0)[::-1]
+    query_point = query_point.astype(int)
+
+    return query_point

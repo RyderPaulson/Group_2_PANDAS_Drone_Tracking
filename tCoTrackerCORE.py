@@ -96,7 +96,7 @@ class TestCoTrackerCORE(unittest.TestCase):
         vis.visualize(video, pred_tracks, pred_visibility, filename=test_name)
 
     def test_ds_frame(self):
-        test_name = "ds_frame"
+        test_name = "t_ds_frame"
         src_name = "ds_frame.mp4"
 
         # Get video

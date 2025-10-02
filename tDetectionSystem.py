@@ -2,12 +2,13 @@
 import unittest
 import cv2
 import torch
+import numpy as np
 
 # From cloned repositories
 from groundingdino.util.inference import load_image, annotate
 
 # Unique to project
-from DetectionSystem import GroundedDINOCORE, FindSensor
+from DetectionSystem import GroundedDINOCORE, find_sensor
 from utils import normalize_np_img
 
 DEFAULT_DEVICE = (
@@ -72,7 +73,36 @@ class TestDetectionSystem(unittest.TestCase):
         cv2.destroyAllWindows()
 
     def test_sensor_identification(self):
-        self.assertEqual(True, False) # add assertion here
+        # Standard workflow for getting a bounding box prediction from GroundingDINO
+        text_prompt = "blue drone"
+        img_path = "media/ds_pan_f1.png"
+        output_image, img = load_image(img_path)
+        grounding_dino = GroundedDINOCORE(text_prompt)
+        boxes, logits, phrases = grounding_dino.detect(img, [0, 0])
+        img_annotated = annotate(
+            image_source=output_image, boxes=boxes, logits=logits, phrases=phrases
+        )
+
+        # Target color determined from looking at the image manually
+        target_color = [87, 41, 62]
+
+        # Find query point and print it
+        query_point = find_sensor(output_image, boxes, target_color=target_color)
+        print(query_point)
+
+        output_image = output_image.copy()
+
+        # Draw a circle at the query point
+        cv2.circle(
+            output_image,
+            (int(query_point[0]), int(query_point[1])),
+            radius=5,
+            color=(0, 255, 0),
+            thickness=-1,
+        )
+
+        # Save the final annotated image
+        cv2.imwrite("media/ds_pan_f1_qp.png", output_image)
 
 
 if __name__ == "__main__":
