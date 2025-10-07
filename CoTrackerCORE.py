@@ -4,9 +4,9 @@ import numpy as np
 from cotracker.predictor import CoTrackerPredictor
 
 
-#TODO When processing a longer video, the model uses a lot of VRAM. Add a system to force the model to reset it's
+# TODO When processing a longer video, the model uses a lot of VRAM. Add a system to force the model to reset it's
 # checkpoint so that the VRAM is cleared. This is super important if we're processing live video.
-#TODO Implement reset system so that if the tracker is detected as losing the object it is able to reset itself without
+# TODO Implement reset system so that if the tracker is detected as losing the object it is able to reset itself without
 # making an entirely new instance of itself.
 
 DEFAULT_DEVICE = (
@@ -23,9 +23,7 @@ class CoTrackerCORE:
 
     # ----------------------- Public Methods -----------------------
 
-    def __init__(
-        self, query_point, query_frame=0, checkpoint_path=None
-    ):
+    def __init__(self, window_size=16, checkpoint_path=None):
         """
 
         :param query_point: -> The point to track in [x, y] format.
@@ -34,37 +32,17 @@ class CoTrackerCORE:
                                    Default: None which loads a fresh model from Torch Hub.
         """
         # If path provided, load it. Otherwise, load fresh model
-        if checkpoint_path is None:
-            self.model = torch.hub.load(
-                "facebookresearch/co-tracker", "cotracker3_online"
-            ).to(DEFAULT_DEVICE)
-        else:
-            self.model = CoTrackerPredictor(checkpoint=checkpoint_path).to(
-                DEFAULT_DEVICE
-            )
+        self.checkpoint_path = checkpoint_path
 
-        # Put query into T, H, W format and move to GPU if available
-        self.query = torch.tensor([
-            [query_frame, query_point[0], query_point[1]],
-        ]).float()
-        if torch.cuda.is_available():
-            self.query = self.query.cuda()
-
-        # Frame buffer for windowed processing
-        self.frame_count = 0
-        self.window_frames = []
-
-        # Initial conditions
-        self.is_first_step = True
         self.pred_tracks = torch.tensor([0])
         self.pred_visibility = torch.tensor([0])
 
-        initialization_status = (
-            f"CoTracker initialized on {DEFAULT_DEVICE}"
-            f"Model step size: {self.model.step}"
-        )
-
-        print(initialization_status)
+        # Declaration of vars set in initialization
+        self.is_first_step = None
+        self.model = None
+        self.query = None
+        self.window_frames = list()
+        self.window_size = window_size
 
     def run_tracker(self, new_frame):
         """
@@ -72,18 +50,31 @@ class CoTrackerCORE:
         :param new_frame:
         :return pred_tracks, pred_visibility: -> the predictions and visibility of tracked points.
         """
-        self.frame_count += 1
         self.window_frames.append(new_frame)
 
+        num_frames = len(self.window_frames)
+
         # Dump old frames. The program should hold 3x the model step frames in memory at a time.
-        if len(self.window_frames) >= self.model.step * 3:
+        if num_frames >= self.model.step * 3:
             self.window_frames = self.window_frames[self.model.step:]
 
-        if self.frame_count % self.model.step == 0 and self.frame_count != 0:
+        if num_frames % self.model.step == 0 and num_frames != 0:
             self.pred_tracks, self.pred_visibility = self._process_step()
             self.is_first_step = False
 
+        if num_frames >= self.model.step * 2 and self.pred_tracks is None:
+            self.pred_tracks = torch.tensor([0])
+
         return self.pred_tracks, self.pred_visibility
+
+    def hard_rst(self, query_point, query_frame=0):
+        self._initialize_tracker(query_point, query_frame)
+
+        # Frame buffer for windowed processing
+        self.window_frames = list()
+
+    def soft_rst(self, query_point, query_frame=0):
+        self._initialize_tracker(query_point, query_frame)
 
     # ----------------------- Private Methods -----------------------
 
@@ -100,10 +91,33 @@ class CoTrackerCORE:
 
         return self.model(video_chunk, is_first_step=self.is_first_step, queries=self.query[None])
 
-    def _reset_cotracker(self):
-        """
-        When left to run on its own, cotracker will infinitely take up more ram because it is expanding it's context
-        window. This function will reload the base checkpoint to reset CoTracker's ram usage.
-        :return:
-        """
-        pass
+    def _initialize_tracker(self, query_point, query_frame) -> None:
+        # Initialize the model
+        if self.checkpoint_path is None:
+            self.model = torch.hub.load(
+                "facebookresearch/co-tracker", "cotracker3_online"
+            ).to(DEFAULT_DEVICE)
+        else:
+            self.model = CoTrackerPredictor(checkpoint=self.checkpoint_path).to(
+                DEFAULT_DEVICE
+            )
+
+        # self.model.step = self.window_size//2
+
+        # Put query into T, H, W format and move to GPU if available
+        self.query = torch.tensor(
+            [
+                [query_frame, query_point[0], query_point[1]],
+            ]
+        ).float()
+        if torch.cuda.is_available():
+            self.query = self.query.cuda()
+
+        self.is_first_step = True
+
+        initialization_status = (
+            f"CoTracker initialized on {DEFAULT_DEVICE}\n"
+            f"Model step size: {self.model.step}"
+        )
+
+        print(initialization_status)
