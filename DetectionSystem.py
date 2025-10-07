@@ -4,6 +4,7 @@ import numpy as np
 
 # From cloned repositories
 from groundingdino.util.inference import load_model, predict
+from utils import normalize_np_img
 
 DEFAULT_DEVICE = (
     "cuda"
@@ -11,7 +12,7 @@ DEFAULT_DEVICE = (
     else "mps" if torch.backends.mps.is_available() else "cpu"
 )
 
-class GroundedDINOCORE:
+class GroundingDINOCORE:
     """
     Class for detecting a drone in an image using GroundingDINO.
     """
@@ -29,7 +30,8 @@ class GroundedDINOCORE:
         self.box_threshold = box_threshold
         self.text_threshold = text_threshold
 
-    def detect(self, frame, previous_qp):
+    def detect(self, frame):
+        frame = normalize_np_img(frame)
         boxes, logits, phrases = predict(
             model=self.model,
             image=frame,
@@ -49,6 +51,7 @@ def find_sensor(img, box, target_color=[128, 128, 128], th=0.3):
     :param box: -> can either be in tensor form or already converted to a 1x4 numpy array.
     :return query_point: -> [x, y] coordinates
     """
+    # TODO Rework to use OpenCV masking
     if type(box) == torch.Tensor:
         box = box.numpy()[0]
 
