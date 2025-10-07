@@ -8,7 +8,7 @@ import numpy as np
 from groundingdino.util.inference import load_image, annotate
 
 # Unique to project
-from DetectionSystem import GroundedDINOCORE, find_sensor
+from DetectionSystem import GroundingDINOCORE, find_sensor
 from utils import normalize_np_img
 
 DEFAULT_DEVICE = (
@@ -22,7 +22,7 @@ class TestDetectionSystem(unittest.TestCase):
         text_prompt = 'blue drone'
 
         img_src, img  = load_image("media/ds_pan_f1.png")
-        grounding_dino = GroundedDINOCORE(text_prompt)
+        grounding_dino = GroundingDINOCORE(text_prompt)
         boxes, logits, phrases = grounding_dino.detect(img, [0, 0])
         img_annotated = annotate(image_source=img_src, boxes=boxes, logits=logits, phrases=phrases)
         cv2.imwrite("media/ds_pan_f1_a.png", img_annotated)
@@ -45,7 +45,7 @@ class TestDetectionSystem(unittest.TestCase):
         out = cv2.VideoWriter(vid_out_path, fourcc, fps, (width, height))
 
         # Start GroundingDINO
-        grounding_dino = GroundedDINOCORE(text_prompt)
+        grounding_dino = GroundingDINOCORE(text_prompt)
 
         for i in range(video_length-1):
             # Pull frame from capture
@@ -77,11 +77,8 @@ class TestDetectionSystem(unittest.TestCase):
         text_prompt = "blue drone"
         img_path = "media/ds_pan_f1.png"
         output_image, img = load_image(img_path)
-        grounding_dino = GroundedDINOCORE(text_prompt)
+        grounding_dino = GroundingDINOCORE(text_prompt)
         boxes, logits, phrases = grounding_dino.detect(img, [0, 0])
-        img_annotated = annotate(
-            image_source=output_image, boxes=boxes, logits=logits, phrases=phrases
-        )
 
         # Target color determined from looking at the image manually
         target_color = [87, 41, 62]
