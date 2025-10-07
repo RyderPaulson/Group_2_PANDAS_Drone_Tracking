@@ -13,6 +13,8 @@ from cotracker.utils.visualizer import Visualizer, read_video_from_path
 # Unique to project
 from utils import print_frames_analyzed
 
+from utils import LiveVideoViewer
+
 # Set the default device, if an Nvidia GPU is present it will be used where possible
 DEFAULT_DEVICE = (
     "cuda"
@@ -32,7 +34,8 @@ class TestCoTrackerCORE(unittest.TestCase):
         # Setup CoTracker
         query_point = [882, 386]
         query_frame = 0
-        cotracker = CoTrackerCORE(query_point, query_frame=query_frame)
+        cotracker = CoTrackerCORE()
+        cotracker.hard_rst(query_point, query_frame=query_frame)
 
         # Remove frames at the end of the video so that it is evenly divisible with the model step
         video_frames = video_frames[: -(len(video_frames) % cotracker.model.step)]
@@ -70,7 +73,8 @@ class TestCoTrackerCORE(unittest.TestCase):
         # Setup CoTracker
         query_point = [882, 386]
         query_frame = 0
-        cotracker = CoTrackerCORE(query_point, query_frame=query_frame)
+        cotracker = CoTrackerCORE()
+        cotracker.hard_rst(query_point, query_frame=query_frame)
 
         # Remove frames at the end of the video so that it is evenly divisible with the model step
         video_frames = video_frames[: -(len(video_frames) % cotracker.model.step)]
@@ -108,7 +112,8 @@ class TestCoTrackerCORE(unittest.TestCase):
         # Setup CoTracker
         query_point = [882, 386] # TODO Update
         query_frame = 0
-        cotracker = CoTrackerCORE(query_point, query_frame=query_frame)
+        cotracker = CoTrackerCORE()
+        cotracker.hard_rst(query_point, query_frame=query_frame)
 
         # Remove frames at the end of the video so that it is evenly divisible with the model step
         video_frames = video_frames[: -(len(video_frames) % cotracker.model.step)]
