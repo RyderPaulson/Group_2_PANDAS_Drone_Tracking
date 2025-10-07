@@ -43,6 +43,61 @@ def print_frames_analyzed(i, modu):
     if i % modu == 0:
         print(f"{i} frames processed")
 
+def prediction_in_box(query_point, box) -> list:
+    # Check that the query point is in the box
+    x, y = None, None
+    return False
+
+# TODO Send sensor_coord to motor control
+def send_coord(sensor_coord) -> None:
+    return
+
+class LiveVideoViewer:
+    def __init__(self):
+        cv2.namedWindow('Live View', cv2.WINDOW_NORMAL)
+        cv2.resizeWindow('Live View', 800, 600)
+
+
+    def show_frame(self, pred, frame):
+        if pred is not None:
+            cv2.circle(
+                frame,
+                (int(pred[0]), int(pred[1])),
+                radius=5,
+                color=(0, 255, 0),
+                thickness=-1,
+            )
+
+        cv2.imshow('Live View', frame)
+
+        # Wait for 25ms and check if 'q' key is pressed to exit
+        if cv2.waitKey(1) & 0xFF == ord("q"):
+            return
+
+class VideoDisplayer:
+    def __init__(self, filename, fps, width, height):
+        self.width = width
+        self.height = height
+        self.fps = fps
+        self.fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        self.writer = cv2.VideoWriter(filename+".mp4", self.fourcc, self.fps, (self.width, self.height))
+
+    def add_frame(self, pred, frame):
+        if pred is not None:
+            cv2.circle(
+                frame,
+                (int(pred[0]), int(pred[1])),
+                radius=5,
+                color=(0, 255, 0),
+                thickness=-1,
+            )
+
+        self.writer.write(frame)
+
+    def save_video(self):
+        self.writer.release()
+
+
 class PointSelecter:
     """
     Implementation of Bishoy's point selection utility in an object-oriented format.
