@@ -9,7 +9,7 @@ from groundingdino.util.inference import load_image, annotate
 
 # Unique to project
 from DetectionSystem import GroundingDINOCORE, find_sensor
-from utils import normalize_np_img
+from utils import preprocess_frame, scale_coord
 
 DEFAULT_DEVICE = (
     "cuda"
@@ -56,7 +56,7 @@ class TestDetectionSystem(unittest.TestCase):
                 break
 
             # Normalize image for the sake of groundingDINO
-            frame = normalize_np_img(frame_src)
+            frame, _, _ = preprocess_frame(frame_src)
 
             # Detect boxes with groundingDINO
             boxes, logits, phrases = grounding_dino.detect(frame, None)
@@ -76,18 +76,22 @@ class TestDetectionSystem(unittest.TestCase):
         # Standard workflow for getting a bounding box prediction from GroundingDINO
         text_prompt = "blue drone"
         img_path = "media/ds_pan_f1.png"
-        output_image, img = load_image(img_path)
+
+        src_frame = cv2.imread(img_path)
+        tensor_frame_norm, tensor_frame, scale = preprocess_frame(src_frame)
+
         grounding_dino = GroundingDINOCORE(text_prompt)
-        boxes, logits, phrases = grounding_dino.detect(img, [0, 0])
+        boxes, logits, phrases = grounding_dino.detect(tensor_frame_norm)
 
         # Target color determined from looking at the image manually
         target_color = [87, 41, 62]
 
         # Find query point and print it
-        query_point = find_sensor(output_image, boxes, target_color=target_color)
+        query_point = find_sensor(tensor_frame, boxes, target_color=target_color)
+        query_point = scale_coord(query_point, scale)
         print(query_point)
 
-        output_image = output_image.copy()
+        output_image = src_frame.copy()
 
         # Draw a circle at the query point
         cv2.circle(

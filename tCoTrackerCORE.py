@@ -11,7 +11,7 @@ from CoTrackerCORE import CoTrackerCORE
 from cotracker.utils.visualizer import Visualizer, read_video_from_path
 
 # Unique to project
-from utils import print_frames_analyzed
+from utils import print_frames_analyzed, preprocess_frame
 
 from utils import LiveVideoViewer
 
@@ -45,6 +45,7 @@ class TestCoTrackerCORE(unittest.TestCase):
 
         # Iterate through video
         for i, frame in enumerate(video_frames):
+            frame, _ = preprocess_frame(frame)
             pred_tracks, pred_visibility = cotracker.run_tracker(frame)
 
             print_frames_analyzed(i, 25)
@@ -110,7 +111,7 @@ class TestCoTrackerCORE(unittest.TestCase):
             video_frames.append(frame)
 
         # Setup CoTracker
-        query_point = [882, 386] # TODO Update
+        query_point = [882, 386]
         query_frame = 0
         cotracker = CoTrackerCORE()
         cotracker.hard_rst(query_point, query_frame=query_frame)

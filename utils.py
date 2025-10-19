@@ -10,7 +10,7 @@ DEFAULT_DEVICE = (
     else "mps" if torch.backends.mps.is_available() else "cpu"
 )
 
-def normalize_np_img(img_array):
+def preprocess_frame(img_array):
     """
     img_array: numpy array (H, W, C) with color values in [0, 255]
     returns: torch tensor (C, H, W) normalized
@@ -27,36 +27,55 @@ def normalize_np_img(img_array):
     new_h, new_w = int(h * scale), int(w * scale)
     img_resized = cv2.resize(img_array, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
 
+    # Convert to tensor
+    img_tensor = torch.from_numpy(img_resized).permute(2, 0, 1).float()
+    img_tensor.to(DEFAULT_DEVICE)
+
     # Convert to tensor and normalize to [0, 1]
     # Convert from (H, W, C) to (C, H, W) and scale to [0, 1]
-    img_tensor = torch.from_numpy(img_resized).permute(2, 0, 1).float() / 255.0
-    img_tensor.to(DEFAULT_DEVICE)
+    img_tensor_normalized = torch.from_numpy(img_resized).permute(2, 0, 1).float() / 255.0
+    img_tensor_normalized.to(DEFAULT_DEVICE)
 
     # Normalize with ImageNet stats
     mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
     std = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
-    img_normalized = (img_tensor - mean) / std
+    img_normalized = (img_tensor_normalized - mean) / std
+    img_normalized.to(DEFAULT_DEVICE)
 
-    return img_normalized
+    return img_normalized, img_tensor, 1/scale
 
 def print_frames_analyzed(i, modu):
     if i % modu == 0:
         print(f"{i} frames processed")
 
+# TODO Implement
 def prediction_in_box(query_point, box) -> list:
     # Check that the query point is in the box
-    x, y = None, None
-    return False
+    if box.shape[0] > 1:
+        box = box[0]
+    elif box.shape[0] == 0:
+        return False
+    box = box.flatten()
+
+    if ((box[0] < query_point[0] < box[0] + box[2]) and
+        (box[1] < query_point[1] < box[1] + box[3])):
+        return True
+    else:
+        return False
 
 # TODO Send sensor_coord to motor control
 def send_coord(sensor_coord) -> None:
+    # Normalize the sensor coordinate value
+
     return
+
+def scale_coord(coord, factor):
+    return [int(factor*coord[0]), int(factor*coord[1])]
 
 class LiveVideoViewer:
     def __init__(self):
         cv2.namedWindow('Live View', cv2.WINDOW_NORMAL)
         cv2.resizeWindow('Live View', 800, 600)
-
 
     def show_frame(self, pred, frame):
         if pred is not None:

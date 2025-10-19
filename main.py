@@ -5,7 +5,7 @@ import statistics as stat
 
 from CoTrackerCORE import CoTrackerCORE
 from DetectionSystem import GroundingDINOCORE, find_sensor
-from utils import prediction_in_box, send_coord, VideoDisplayer, LiveVideoViewer
+from utils import prediction_in_box, send_coord, VideoDisplayer, LiveVideoViewer, scale_coord, preprocess_frame
 
 
 DEFAULT_DEVICE = (
@@ -14,12 +14,14 @@ DEFAULT_DEVICE = (
     else "mps" if torch.backends.mps.is_available() else "cpu"
 )
 
-def main(camera_id, send_to_board=False, print_coord=False, write_out=False, disp_out=False, test_name="default", benchmarking=False) -> None:
+def main(camera_id, text_prompt="personal drone", send_to_board=False, print_coord=False,
+         write_out=False, disp_out=False, test_name="default",
+         benchmarking=False) -> None:
+
     # Config variables
     window_size = 16
     rst_interval = window_size * 16 # How long to run cotracker before resetting it
     bb_check_interval = window_size * 8
-    text_prompt = "blue drone"
     is_first_step = True
 
     # Instantiate different tracking objects
@@ -42,12 +44,12 @@ def main(camera_id, send_to_board=False, print_coord=False, write_out=False, dis
     if disp_out:
         viewer = LiveVideoViewer()
 
-    frames_since_rst = 0
-    sensor_coord = None
-
     if benchmarking:
         t_bb = []
         t_cotracker = []
+
+    frames_since_rst = 0
+    sensor_coord = None
 
     while True:
         # Capture new frame
@@ -58,6 +60,8 @@ def main(camera_id, send_to_board=False, print_coord=False, write_out=False, dis
             print("Error: Could not read frame. Exiting...")
             break
 
+        frame_tensor_norm, frame_tensor, scale = preprocess_frame(frame)
+
         if frames_since_rst >= rst_interval or is_first_step:
             # Force reset state
 
@@ -65,8 +69,8 @@ def main(camera_id, send_to_board=False, print_coord=False, write_out=False, dis
             if benchmarking:
                 start = time.perf_counter()
 
-            box, _, _ = gd.detect(frame)
-            query_point = find_sensor(frame, box)
+            box, _, _ = gd.detect(frame_tensor_norm)
+            query_point = find_sensor(frame_tensor, box)
             cotracker.soft_rst(query_point)
 
             if benchmarking:
@@ -78,14 +82,14 @@ def main(camera_id, send_to_board=False, print_coord=False, write_out=False, dis
 
         elif frames_since_rst % bb_check_interval == 0:
             # Check tracked point still in drone
-            box, _, _ = gd.detect(frame)
+            box, _, _ = gd.detect(frame_tensor_norm)
 
             # Check that the latest prediction is still in the box
             reset_qp = prediction_in_box(sensor_coord, box)
 
-            if reset_qp:
+            if not reset_qp:
                 # Reset with new query_point
-                query_point = find_sensor(frame, box)
+                query_point = find_sensor(frame_tensor, box)
                 cotracker.hard_rst(query_point)
 
                 frames_since_rst = 0
@@ -94,11 +98,11 @@ def main(camera_id, send_to_board=False, print_coord=False, write_out=False, dis
             start = time.perf_counter()
 
         # Run CoTracker as normal
-        sensor_coord, _ = cotracker.run_tracker(frame)
+        sensor_coord, _ = cotracker.run_tracker(frame_tensor)
         if sensor_coord is None or sensor_coord.shape == torch.Size([1]):
             sensor_coord = None
         else:
-            sensor_coord = sensor_coord[-1, -1, -1].tolist()
+            sensor_coord = scale_coord(sensor_coord[-1, -1, -1].tolist(), scale)
 
         if benchmarking:
             end = time.perf_counter()

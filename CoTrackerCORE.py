@@ -4,11 +4,6 @@ import numpy as np
 from cotracker.predictor import CoTrackerPredictor
 
 
-# TODO When processing a longer video, the model uses a lot of VRAM. Add a system to force the model to reset it's
-# checkpoint so that the VRAM is cleared. This is super important if we're processing live video.
-# TODO Implement reset system so that if the tracker is detected as losing the object it is able to reset itself without
-# making an entirely new instance of itself.
-
 DEFAULT_DEVICE = (
     "cuda"
     if torch.cuda.is_available()
@@ -44,13 +39,16 @@ class CoTrackerCORE:
         self.window_frames = list()
         self.window_size = window_size
 
-    def run_tracker(self, new_frame):
+    def run_tracker(self, new_frame: torch.tensor):
         """
         Collect a new frame and if the frame buffer is full, process them.
         :param new_frame:
         :return pred_tracks, pred_visibility: -> the predictions and visibility of tracked points.
         """
-        self.window_frames.append(new_frame)
+        self.window_frames.append(
+            new_frame
+            .to(DEFAULT_DEVICE)
+        )
 
         num_frames = len(self.window_frames)
 
@@ -80,15 +78,7 @@ class CoTrackerCORE:
 
     def _process_step(self):
         """Process all buffered frames and return tracks and visibility."""
-        video_chunk = (
-            torch.tensor(
-                np.stack(self.window_frames[-self.model.step * 2 :]),
-                device=DEFAULT_DEVICE,
-            )
-            .float()
-            .permute(0, 3, 1, 2)[None]
-        )  # (1, T, 3, H, W)
-
+        video_chunk = torch.stack(self.window_frames[-self.model.step * 2 :])[None] # (1, T, 3, H, W)
         return self.model(video_chunk, is_first_step=self.is_first_step, queries=self.query[None])
 
     def _initialize_tracker(self, query_point, query_frame) -> None:
@@ -98,9 +88,9 @@ class CoTrackerCORE:
                 "facebookresearch/co-tracker", "cotracker3_online"
             ).to(DEFAULT_DEVICE)
         else:
-            self.model = CoTrackerPredictor(checkpoint=self.checkpoint_path).to(
-                DEFAULT_DEVICE
-            )
+            self.model = (CoTrackerPredictor(checkpoint=self.checkpoint_path)
+                            .to(DEFAULT_DEVICE)
+                          )
 
         # self.model.step = self.window_size//2
 

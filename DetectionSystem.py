@@ -4,7 +4,6 @@ import numpy as np
 
 # From cloned repositories
 from groundingdino.util.inference import load_model, predict
-from utils import normalize_np_img
 
 DEFAULT_DEVICE = (
     "cuda"
@@ -30,8 +29,7 @@ class GroundingDINOCORE:
         self.box_threshold = box_threshold
         self.text_threshold = text_threshold
 
-    def detect(self, frame):
-        frame = normalize_np_img(frame)
+    def detect(self, frame: torch.tensor):
         boxes, logits, phrases = predict(
             model=self.model,
             image=frame,
@@ -47,43 +45,60 @@ def find_sensor(img, box, target_color=[128, 128, 128], th=0.3):
     Given a bounding box around the drone as obtained by GroundingDINO, will find the specific point to feed into
     CoTracker.
     Note, since color is an important distinguisher, we do not convert the image to gray.
-    :param img: -> image to annotate. Must be in RGB format
-    :param box: -> can either be in tensor form or already converted to a 1x4 numpy array.
-    :return query_point: -> [x, y] coordinates
+    :param img: image to annotate. Must be in RGB format
+    :param box: can either be in tensor form or already converted to a 1x4 numpy array.
+    :param shape: the shape of the source image
+    :return query_point: [x, y] coordinates
     """
-    # TODO Rework to use OpenCV masking
-    if type(box) == torch.Tensor:
-        box = box.numpy()[0]
+    # If more than one box is found, reduce to only the highest weighted one
+    if box.shape[0] > 1:
+        box = box[0]
+    elif box.shape[0] == 0:
+        return np.array([0, 0])
+    box = box.flatten()
 
-    # Give that the box dimensions are given as a normalized value from 0-1 find the actual pixel values of the box
-    img_shape = img.shape
-    img_h = img_shape[0]
-    img_w = img_shape[1]
-    box = np.array([img_w * box[0] - 0.5*(img_w * box[2]),
-                    img_h * box[1] - 0.5*(img_h * box[3]),
-                    img_w * box[0] + 0.5*(img_w * box[2]),
-                    img_h * box[1] + 0.5*(img_h * box[3])])
-    box = box.astype(int)
+    # Get image dimensions as tensors
+    img_h, img_w = img.shape[1], img.shape[2]
 
-    # Create a max of just the bounding box
-    rows, cols = np.ogrid[:img.shape[0], :img.shape[1]]
-    box_mask = (
-        (rows >= box[1]) & (rows < box[3]) & (cols >= box[0]) & (cols < box[2])
-    )
+    # Convert normalized box coordinates to pixel coordinates
+    x_min = (box[0] * img_w - 0.5 * box[2] * img_w).int()
+    y_min = (box[1] * img_h - 0.5 * box[3] * img_h).int()
+    x_max = (box[0] * img_w + 0.5 * box[2] * img_w).int()
+    y_max = (box[1] * img_h + 0.5 * box[3] * img_h).int()
 
-    # Define threshold values
-    low_th = [int(i - i * th) for i in target_color]
-    high_th = [int(i + i * th) for i in target_color]
+    # Clamp coordinates to image bounds to avoid possible rounding error
+    # This is important because CoTracker can actually track off of the
+    # screen so we still want to be able to handle that
+    x_min = torch.clamp(x_min, min=0, max=img_w)
+    y_min = torch.clamp(y_min, min=0, max=img_h)
+    x_max = torch.clamp(x_max, min=0, max=img_w)
+    y_max = torch.clamp(y_max, min=0, max=img_h)
 
-    # Create mask with all pixels within the threshold
-    th_mask = np.all((low_th <= img) & (img <= high_th), axis=-1)
+    # Crop the image to the bounding box
+    cropped_img = img[:, y_min:y_max, x_min:x_max].to(DEFAULT_DEVICE)
 
-    # Combine the masks and convert to just be list of coordinates
-    mask = box_mask & th_mask
-    coordinates = np.argwhere(mask)
+    # Define threshold values as tensor
+    target_color_tensor = torch.tensor(target_color, dtype=torch.uint8, device=DEFAULT_DEVICE)
+    low_th = (target_color_tensor * (1 - th)).view(3, 1, 1).to(DEFAULT_DEVICE)
+    high_th = (target_color_tensor * (1 + th)).view(3, 1, 1).to(DEFAULT_DEVICE)
 
-    # Average all identified points in the mask to find the query point
-    query_point = np.mean(coordinates, axis=0)[::-1]
-    query_point = query_point.astype(int)
+    # Create color mask within the cropped region
+    th_mask = torch.all((cropped_img >= low_th) & (cropped_img <= high_th), dim=0)
 
-    return query_point
+    # Get coordinates of masked pixels (in cropped space)
+    coordinates = torch.argwhere(th_mask)  # Returns (y, x) format
+
+    if len(coordinates) == 0:
+        # No pixels found, return center of bounding box
+        center_x = (box[0] * img_w).int().item()
+        center_y = (box[1] * img_h).int().item()
+        return np.array([center_x, center_y])
+
+    # Average all identified points to find the central point
+    mean_coords = torch.mean(coordinates.float(), dim=0)
+
+    # Convert coordinates back to src frame
+    query_point_x = (mean_coords[1] + x_min).int().item()
+    query_point_y = (mean_coords[0] + y_min).int().item()
+
+    return np.array([query_point_x, query_point_y])
