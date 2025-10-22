@@ -3,6 +3,7 @@ import torch
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 
 DEFAULT_DEVICE = (
     "cuda"
@@ -71,6 +72,65 @@ def send_coord(sensor_coord) -> None:
 
 def scale_coord(coord, factor):
     return [int(factor*coord[0]), int(factor*coord[1])]
+
+class IOOptions:
+    def __init__(self,
+                 test_name: str,
+                 send_to_board: bool,
+                 print_coord: bool,
+                 write_out: bool,
+                 disp_out: bool,
+                 benchmarking: bool,
+                 capture: cv2.VideoCapture):
+        self.send_to_board = send_to_board
+        self.print_coord = print_coord
+        self.write_out = write_out
+        self.disp_out = disp_out
+        self.benchmarking = benchmarking
+
+        if write_out:
+            fps = int(capture.get(cv2.CAP_PROP_FPS))
+            width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            self.visualizer = VideoDisplayer("media/t" + test_name, fps, width, height)
+
+        if self.disp_out:
+            self.viewer = LiveVideoViewer()
+
+        # State tracking variables. If false start timer, if true, end timer
+        if self.benchmarking:
+            self.dino_bench_state = False
+            self.dino_timer = None
+            self.cotracker_bench_state = False
+            self.cotracker_timer = None
+
+    def __del__(self):
+        if self.write_out:
+            self.visualizer.save_video()
+
+    def bench_DINO(self) -> None:
+        if not self.benchmarking:
+            return
+
+    def bench_CoTracker(self) -> None:
+        if not self.benchmarking:
+            return
+
+    def run(self, sensor_coord, frame=None) -> None:
+        if self.send_to_board:
+            send_coord(sensor_coord)
+
+        if self.write_out:
+            self.visualizer.add_frame(sensor_coord, frame)
+
+        if self.disp_out:
+            self.viewer.show_frame(sensor_coord, frame)
+
+        if self.print_coord:
+            if sensor_coord is None:
+                print("No Point")
+            else:
+                print(f"x: {sensor_coord[0]:.2f} | y: {sensor_coord[1]:.2f}")
 
 class LiveVideoViewer:
     def __init__(self):
