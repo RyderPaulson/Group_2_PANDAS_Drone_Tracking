@@ -62,20 +62,18 @@ def main(camera_id,
             print("Error: Could not read frame. Exiting...")
             break
 
-        frame_tensor_norm, frame_tensor, scale = utils.preprocess_frame(frame, max_img_size)
+        # Convert BGR to RGB
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-        """
-        # Delete frame
-        if not (write_out or disp_out):
-            frame = None
-            gc.collect()
-        """
+        # Get preprocessed frames
+        frame_tensor_norm, frame_tensor, scale = utils.preprocess_frame(
+            frame_rgb, max_img_size
+        )
 
         if frames_since_rst >= rst_interval or is_first_step:
             # Force reset state
-
             # Run full tracking workflow
-            box, _, _ = gd.detect(frame_tensor_norm)
+            box, _, _ = gd.detect(frame_tensor)
             query_point = find_sensor(frame_tensor, box)
             cotracker.soft_rst(query_point)
 
@@ -84,7 +82,8 @@ def main(camera_id,
 
         elif frames_since_rst % bb_check_interval == 0:
             # Check tracked point still in drone
-            box, _, _ = gd.detect(frame_tensor_norm)
+            # IMPORTANT: Pass frame_tensor (0-255 range) to GroundingDINO
+            box, _, _ = gd.detect(frame_tensor)
 
             # Check that the latest prediction is still in the box
             reset_qp = utils.prediction_in_box(sensor_coord, box)
@@ -96,8 +95,9 @@ def main(camera_id,
 
                 frames_since_rst = 0
 
-        # Run CoTracker as normal
-        sensor_coord, _ = cotracker.run_tracker(frame_tensor)
+        sensor_coord, _ = cotracker.run_tracker(
+            frame_tensor_norm
+        )
         if sensor_coord is None or sensor_coord.shape == torch.Size([1]):
             sensor_coord = None
         else:
