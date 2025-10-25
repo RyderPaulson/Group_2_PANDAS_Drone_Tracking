@@ -18,6 +18,7 @@ TEST_NAME="default"
 WINDOW_SIZE=16
 RST_INTERVAL_MULT=16
 BB_CHECK_MULT=8
+IMG_SIZE=1330
 
 # Flags
 SEND_TO_BOARD=false
@@ -40,6 +41,7 @@ OPTIONS:
     -w, --window-size <size>    CoTracker window size (default: 16)
     -r, --rst-mult <mult>       Reset interval multiplier (default: 16)
     -b, --bb-mult <mult>        Bounding box check multiplier (default: 8)
+    -s, --img-size <size>       Max image width (default: 1330)
 
     --send-to-board             Send coordinates to board
     --print-coord               Print coordinates to console
@@ -58,6 +60,9 @@ EXAMPLES:
 
     # Track a specific object with custom settings
     $0 -c media/bird.mp4 -t "bird" -n "bird_test" --disp-out
+
+    # Set custom image size
+    $0 -c 0 -s 800 --disp-out
 
 EOF
     exit 0
@@ -101,6 +106,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -b|--bb-mult)
             BB_CHECK_MULT="$2"
+            shift 2
+            ;;
+        -s|--img-size)
+            IMG_SIZE="$2"
             shift 2
             ;;
         --send-to-board)
@@ -152,6 +161,7 @@ CMD="$CMD --test-name \"$TEST_NAME\""
 CMD="$CMD --window-size $WINDOW_SIZE"
 CMD="$CMD --rst-interval-mult $RST_INTERVAL_MULT"
 CMD="$CMD --bb-check-mult $BB_CHECK_MULT"
+CMD="$CMD --img-size $IMG_SIZE"
 
 [ "$SEND_TO_BOARD" = true ] && CMD="$CMD --send-to-board"
 [ "$PRINT_COORD" = true ] && CMD="$CMD --print-coord"
@@ -165,6 +175,7 @@ print_info "Camera: $CAMERA_ID"
 print_info "Text prompt: $TEXT_PROMPT"
 print_info "Test name: $TEST_NAME"
 print_info "Window size: $WINDOW_SIZE"
+print_info "Image size: $IMG_SIZE"
 
 # Execute the command
 print_info "Executing: $CMD"

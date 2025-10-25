@@ -21,6 +21,9 @@ param(
     [Alias("b")]
     [int]$BbMult = 8,
 
+    [Alias("s")]
+    [int]$Size = 1330,
+
     [switch]$SendToBoard,
     [switch]$PrintCoord,
     [switch]$WriteOut,
@@ -75,6 +78,9 @@ OPTIONS:
     -BbMult <mult>         Bounding box check multiplier (default: 8)
                            Alias: -b
 
+    -Size <size>           Max image width (default: 1330)
+                           Alias: -s
+
     -SendToBoard           Send coordinates to board
     -PrintCoord            Print coordinates to console
     -WriteOut              Write output to file
@@ -95,6 +101,9 @@ EXAMPLES:
 
     # Track a specific object with custom settings
     .\launch.ps1 -c media/bird.mp4 -t "bird" -n "bird_test" -DispOut
+
+    # Set custom image size
+    .\launch.ps1 -c 0 -s 800 -DispOut
 
 "@
     exit 0
@@ -123,17 +132,19 @@ Write-Info "Camera: $Camera"
 Write-Info "Text prompt: $TextPrompt"
 Write-Info "Test name: $TestName"
 Write-Info "Window size: $WindowSize"
+Write-Info "Image size: $Size"
 Write-Host ""
 
 # Build argument list
 $arguments = @(
     "main.py",
-    $Camera,  # Remove the quotes here
+    $Camera,
     "--text-prompt", "`"$TextPrompt`"",
     "--test-name", "`"$TestName`"",
     "--window-size", $WindowSize,
     "--rst-interval-mult", $RstMult,
-    "--bb-check-mult", $BbMult
+    "--bb-check-mult", $BbMult,
+    "--img-size", $Size
 )
 
 if ($SendToBoard) { $arguments += "--send-to-board" }
