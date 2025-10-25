@@ -1,6 +1,7 @@
 import torch
 import cv2
 import argparse
+import gc
 
 from CoTrackerCORE import CoTrackerCORE
 from DetectionSystem import GroundingDINOCORE, find_sensor
@@ -23,7 +24,8 @@ def main(camera_id,
          test_name="default",
          window_size=16,
          rst_interval_mult=16,
-         bb_check_mult=8) -> None:
+         bb_check_mult=8,
+         max_img_size=800) -> None:
 
     # Config variables
     rst_interval = window_size * rst_interval_mult
@@ -60,10 +62,14 @@ def main(camera_id,
             print("Error: Could not read frame. Exiting...")
             break
 
-        frame_tensor_norm, frame_tensor, scale = utils.preprocess_frame(frame)
+        frame_tensor_norm, frame_tensor, scale = utils.preprocess_frame(frame, max_img_size)
 
+        """
+        # Delete frame
         if not (write_out or disp_out):
             frame = None
+            gc.collect()
+        """
 
         if frames_since_rst >= rst_interval or is_first_step:
             # Force reset state
@@ -175,6 +181,13 @@ def parse_args():
         help="Bounding box check multiplier (default: 8, bb_check_interval = window_size * mult)",
     )
 
+    parser.add_argument(
+        "--img-size",
+        type=int,
+        default=1330,
+        help="The max width that the image will be transformed down into.",
+    )
+
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -192,4 +205,5 @@ if __name__ == "__main__":
         window_size=args.window_size,
         rst_interval_mult=args.rst_interval_mult,
         bb_check_mult=args.bb_check_mult,
+        max_img_size=args.img_size
     )
