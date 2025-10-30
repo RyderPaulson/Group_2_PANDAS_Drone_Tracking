@@ -13,3 +13,5 @@
 /simulation/simulate_drone_tracking.slx.r2025a
 /BishoyPointTracker.py
 /__pycache__/
+/vision/
+/temp/
