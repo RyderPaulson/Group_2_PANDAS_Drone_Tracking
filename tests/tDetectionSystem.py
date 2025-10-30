@@ -21,17 +21,17 @@ class TestDetectionSystem(unittest.TestCase):
     def test_drone_detection_frame(self):
         text_prompt = 'blue drone'
 
-        img_src, img  = load_image("media/ds_pan_f1.png")
+        img_src, img  = load_image("../media/ds_pan_f1.png")
         grounding_dino = GroundingDINOCORE(text_prompt)
         boxes, logits, phrases = grounding_dino.detect(img, [0, 0])
         img_annotated = annotate(image_source=img_src, boxes=boxes, logits=logits, phrases=phrases)
-        cv2.imwrite("media/ds_pan_f1_a.png", img_annotated)
+        cv2.imwrite("../media/ds_pan_f1_a.png", img_annotated)
 
     def test_drone_detection_video(self):
         # Test parameters
         text_prompt = 'drone'
-        vid_path = 'media/ds_pan_cut.mp4'
-        vid_out_path = 'media/d_detect_v1.mp4'
+        vid_path = '../media/ds_pan_cut.mp4'
+        vid_out_path = '../media/d_detect_v1.mp4'
 
         # Create input capture obj
         cap = cv2.VideoCapture(vid_path)
@@ -75,7 +75,7 @@ class TestDetectionSystem(unittest.TestCase):
     def test_sensor_identification(self):
         # Standard workflow for getting a bounding box prediction from GroundingDINO
         text_prompt = "blue drone"
-        img_path = "media/ds_pan_f1.png"
+        img_path = "../media/ds_pan_f1.png"
 
         src_frame = cv2.imread(img_path)
         tensor_frame_norm, tensor_frame, scale = preprocess_frame(src_frame)
@@ -103,7 +103,7 @@ class TestDetectionSystem(unittest.TestCase):
         )
 
         # Save the final annotated image
-        cv2.imwrite("media/ds_pan_f1_qp.png", output_image)
+        cv2.imwrite("../media/ds_pan_f1_qp.png", output_image)
 
 
 if __name__ == "__main__":

@@ -1,9 +1,8 @@
 # PyPi packages
 import torch
 import numpy as np
-
-# From cloned repositories
-from groundingdino.util.inference import load_model, predict
+from transformers import AutoProcessor, AutoModelForZeroShotObjectDetection
+from PIL import Image
 
 DEFAULT_DEVICE = (
     "cuda"
@@ -11,34 +10,86 @@ DEFAULT_DEVICE = (
     else "mps" if torch.backends.mps.is_available() else "cpu"
 )
 
+
 class GroundingDINOCORE:
     """
     Class for detecting a drone in an image using GroundingDINO.
     """
+
     def __init__(self, text_prompt, box_threshold=0.35, text_threshold=0.25):
         """
         Initialize GroundingDINO.
-        :param text_prompt:
-        :param box_threshold:
-        :param text_threshold:
+        :param text_prompt: Text prompt for detection (e.g., "a drone")
+        :param box_threshold: Confidence threshold for bounding boxes (used as threshold parameter)
+        :param text_threshold: Not used in HuggingFace implementation
         """
-        self.model = load_model("GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py",
-                                "GroundingDINO/weights/groundingdino_swint_ogc.pth")
-        self.model.to(DEFAULT_DEVICE)
-        self.text_prompt = text_prompt
-        self.box_threshold = box_threshold
-        self.text_threshold = text_threshold
-
-    def detect(self, frame: torch.tensor):
-        boxes, logits, phrases = predict(
-            model=self.model,
-            image=frame,
-            caption=self.text_prompt,
-            box_threshold=self.box_threshold,
-            text_threshold=self.text_threshold,
+        model_id = "IDEA-Research/grounding-dino-tiny"
+        self.processor = AutoProcessor.from_pretrained(model_id)
+        self.model = AutoModelForZeroShotObjectDetection.from_pretrained(model_id).to(
+            DEFAULT_DEVICE
         )
 
-        return boxes, logits, phrases
+        # IMPORTANT: text prompts need to be lowercased and end with a dot
+        self.text_prompt = text_prompt.lower()
+        if not self.text_prompt.endswith("."):
+            self.text_prompt += "."
+
+        # HuggingFace API only uses a single threshold parameter
+        self.threshold = box_threshold
+
+    def detect(self, frame: torch.Tensor):
+        """
+        Detect objects in the frame.
+        :param frame: Input image as torch tensor (C, H, W) in RGB format with values 0-255
+        :return: boxes, logits, phrases
+        """
+        # Convert tensor to PIL Image
+        if frame.dtype != torch.uint8:
+            frame = frame.byte()
+
+        # Convert from (C, H, W) to (H, W, C) and then to PIL
+        frame_np = frame.permute(1, 2, 0).cpu().numpy()
+        image = Image.fromarray(frame_np)
+
+        # Get image size for post-processing
+        target_size = [image.size[::-1]]  # (height, width)
+
+        # Process inputs
+        inputs = self.processor(
+            images=image, text=self.text_prompt, return_tensors="pt"
+        ).to(DEFAULT_DEVICE)
+
+        # Run inference
+        with torch.no_grad():
+            outputs = self.model(**inputs)
+
+        # Post-process results - FIXED: Use correct API with threshold parameter
+        results = self.processor.post_process_grounded_object_detection(
+            outputs, threshold=self.threshold, target_sizes=target_size
+        )[
+            0
+        ]  # Get first (and only) image results
+
+        # Extract boxes, scores, and labels
+        boxes = results["boxes"]  # In xyxy format (pixel coordinates)
+        logits = results["scores"]
+        phrases = results["labels"]
+
+        # Convert boxes from xyxy (pixel coords) to cxcywh (normalized) format to match original API
+        h, w = target_size[0]
+
+        # Handle case when no detections are found
+        if len(boxes) == 0:
+            return torch.empty((0, 4)), torch.empty(0), []
+
+        boxes_cxcywh = torch.zeros_like(boxes)
+        boxes_cxcywh[:, 0] = (boxes[:, 0] + boxes[:, 2]) / 2 / w  # center_x
+        boxes_cxcywh[:, 1] = (boxes[:, 1] + boxes[:, 3]) / 2 / h  # center_y
+        boxes_cxcywh[:, 2] = (boxes[:, 2] - boxes[:, 0]) / w  # width
+        boxes_cxcywh[:, 3] = (boxes[:, 3] - boxes[:, 1]) / h  # height
+
+        return boxes_cxcywh, logits, phrases
+
 
 def find_sensor(img, box, target_color=[128, 128, 128], th=0.3):
     """
@@ -47,7 +98,6 @@ def find_sensor(img, box, target_color=[128, 128, 128], th=0.3):
     Note, since color is an important distinguisher, we do not convert the image to gray.
     :param img: image to annotate. Must be in RGB format
     :param box: can either be in tensor form or already converted to a 1x4 numpy array.
-    :param shape: the shape of the source image
     :return query_point: [x, y] coordinates
     """
     # If more than one box is found, reduce to only the highest weighted one
@@ -67,8 +117,6 @@ def find_sensor(img, box, target_color=[128, 128, 128], th=0.3):
     y_max = (box[1] * img_h + 0.5 * box[3] * img_h).int()
 
     # Clamp coordinates to image bounds to avoid possible rounding error
-    # This is important because CoTracker can actually track off of the
-    # screen so we still want to be able to handle that
     x_min = torch.clamp(x_min, min=0, max=img_w)
     y_min = torch.clamp(y_min, min=0, max=img_h)
     x_max = torch.clamp(x_max, min=0, max=img_w)
@@ -78,7 +126,9 @@ def find_sensor(img, box, target_color=[128, 128, 128], th=0.3):
     cropped_img = img[:, y_min:y_max, x_min:x_max].to(DEFAULT_DEVICE)
 
     # Define threshold values as tensor
-    target_color_tensor = torch.tensor(target_color, dtype=torch.uint8, device=DEFAULT_DEVICE)
+    target_color_tensor = torch.tensor(
+        target_color, dtype=torch.uint8, device=DEFAULT_DEVICE
+    )
     low_th = (target_color_tensor * (1 - th)).view(3, 1, 1).to(DEFAULT_DEVICE)
     high_th = (target_color_tensor * (1 + th)).view(3, 1, 1).to(DEFAULT_DEVICE)
 

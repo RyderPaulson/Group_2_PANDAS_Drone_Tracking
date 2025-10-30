@@ -1,11 +1,11 @@
 import torch
 import cv2
-import time
-import statistics as stat
+import argparse
+import gc
 
 from CoTrackerCORE import CoTrackerCORE
 from DetectionSystem import GroundingDINOCORE, find_sensor
-from utils import prediction_in_box, send_coord, VideoDisplayer, LiveVideoViewer, scale_coord, preprocess_frame
+import utils
 
 
 DEFAULT_DEVICE = (
@@ -14,14 +14,22 @@ DEFAULT_DEVICE = (
     else "mps" if torch.backends.mps.is_available() else "cpu"
 )
 
-def main(camera_id, text_prompt="personal drone", send_to_board=False, print_coord=False,
-         write_out=False, disp_out=False, test_name="default",
-         benchmarking=False) -> None:
+def main(camera_id,
+         text_prompt="drone",
+         send_to_board=False,
+         print_coord=False,
+         write_out=False,
+         disp_out=False,
+         benchmarking=False,
+         test_name="default",
+         window_size=16,
+         rst_interval_mult=16,
+         bb_check_mult=8,
+         max_img_size=800) -> None:
 
     # Config variables
-    window_size = 16
-    rst_interval = window_size * 16 # How long to run cotracker before resetting it
-    bb_check_interval = window_size * 8
+    rst_interval = window_size * rst_interval_mult
+    bb_check_interval = window_size * bb_check_mult
     is_first_step = True
 
     # Instantiate different tracking objects
@@ -34,19 +42,13 @@ def main(camera_id, text_prompt="personal drone", send_to_board=False, print_coo
         print("Error: Could not open camera.")
         exit()
 
-    # Create object to save output
-    if write_out:
-        fps = int(capture.get(cv2.CAP_PROP_FPS))
-        width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        visualizer = VideoDisplayer("media/t" + test_name, fps, width, height)
-
-    if disp_out:
-        viewer = LiveVideoViewer()
-
-    if benchmarking:
-        t_bb = []
-        t_cotracker = []
+    io_options = utils.IOOptions(test_name,
+                                 send_to_board,
+                                 print_coord,
+                                 write_out,
+                                 disp_out,
+                                 benchmarking,
+                                 capture)
 
     frames_since_rst = 0
     sensor_coord = None
@@ -60,32 +62,31 @@ def main(camera_id, text_prompt="personal drone", send_to_board=False, print_coo
             print("Error: Could not read frame. Exiting...")
             break
 
-        frame_tensor_norm, frame_tensor, scale = preprocess_frame(frame)
+        # Convert BGR to RGB
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        # Get preprocessed frames
+        frame_tensor_norm, frame_tensor, scale = utils.preprocess_frame(
+            frame_rgb, max_img_size
+        )
 
         if frames_since_rst >= rst_interval or is_first_step:
             # Force reset state
-
             # Run full tracking workflow
-            if benchmarking:
-                start = time.perf_counter()
-
-            box, _, _ = gd.detect(frame_tensor_norm)
+            box, _, _ = gd.detect(frame_tensor)
             query_point = find_sensor(frame_tensor, box)
             cotracker.soft_rst(query_point)
-
-            if benchmarking:
-                end = time.perf_counter()
-                t_bb.append(end-start)
 
             frames_since_rst = 0
             is_first_step = False
 
         elif frames_since_rst % bb_check_interval == 0:
             # Check tracked point still in drone
-            box, _, _ = gd.detect(frame_tensor_norm)
+            # IMPORTANT: Pass frame_tensor (0-255 range) to GroundingDINO
+            box, _, _ = gd.detect(frame_tensor)
 
             # Check that the latest prediction is still in the box
-            reset_qp = prediction_in_box(sensor_coord, box)
+            reset_qp = utils.prediction_in_box(sensor_coord, box)
 
             if not reset_qp:
                 # Reset with new query_point
@@ -94,49 +95,115 @@ def main(camera_id, text_prompt="personal drone", send_to_board=False, print_coo
 
                 frames_since_rst = 0
 
-        if benchmarking:
-            start = time.perf_counter()
-
-        # Run CoTracker as normal
-        sensor_coord, _ = cotracker.run_tracker(frame_tensor)
+        sensor_coord, _ = cotracker.run_tracker(
+            frame_tensor_norm
+        )
         if sensor_coord is None or sensor_coord.shape == torch.Size([1]):
             sensor_coord = None
         else:
-            sensor_coord = scale_coord(sensor_coord[-1, -1, -1].tolist(), scale)
-
-        if benchmarking:
-            end = time.perf_counter()
-            t_cotracker.append(end-start)
+            sensor_coord = utils.scale_coord(sensor_coord[-1, -1, -1].tolist(), scale)
 
         frames_since_rst += 1
 
-        # -- IO Options --
-        if print_coord:
-            if sensor_coord is None:
-                print("No Point")
-            else:
-                print(f"x: {sensor_coord[0]:.2f} | y: {sensor_coord[1]:.2f}")
+        io_options.run(sensor_coord, frame)
 
-        if send_to_board:
-            send_coord(sensor_coord)
-
-        if write_out:
-            visualizer.add_frame(sensor_coord, frame)
-
-        if disp_out:
-            viewer.show_frame(sensor_coord, frame)
-
-    if benchmarking:
-        print(f"Average time to find bounding box: {stat.fmean(t_bb):.5f}")
-        print(f"Average time to run CoTracker: {max(t_cotracker):.5f}")
-
-    if write_out:
-        visualizer.save_video()
+    del io_options # Call destructor which will print results
 
     capture.release()
     cv2.destroyAllWindows()
 
+def camera_id_type(value):
+    """Convert camera_id to int if possible, otherwise keep as string."""
+    try:
+        return int(value)
+    except ValueError:
+        return value
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Drone tracking system using CoTracker and Grounding DINO"
+    )
+
+    # Required arguments
+    parser.add_argument(
+        "camera_id", type=camera_id_type, help="Camera ID (integer) or path to video file"
+    )
+
+    # Optional arguments
+    parser.add_argument(
+        "--text-prompt",
+        type=str,
+        default="drone",
+        help="Text prompt for object detection (default: 'drone')",
+    )
+
+    parser.add_argument(
+        "--send-to-board", action="store_true", help="Send coordinates to board"
+    )
+
+    parser.add_argument(
+        "--print-coord", action="store_true", help="Print coordinates to console"
+    )
+
+    parser.add_argument("--write-out", action="store_true", help="Write output to file")
+
+    parser.add_argument("--disp-out", action="store_true", help="Display output window")
+
+    parser.add_argument(
+        "--benchmarking", action="store_true", help="Enable benchmarking mode"
+    )
+
+    parser.add_argument(
+        "--test-name",
+        type=str,
+        default="default",
+        help="Name for the test run (default: 'default')",
+    )
+
+    parser.add_argument(
+        "--window-size",
+        type=int,
+        default=16,
+        help="CoTracker window size (default: 16)",
+    )
+
+    parser.add_argument(
+        "--rst-interval-mult",
+        type=int,
+        default=16,
+        help="Reset interval multiplier (default: 16, rst_interval = window_size * mult)",
+    )
+
+    parser.add_argument(
+        "--bb-check-mult",
+        type=int,
+        default=8,
+        help="Bounding box check multiplier (default: 8, bb_check_interval = window_size * mult)",
+    )
+
+    parser.add_argument(
+        "--img-size",
+        type=int,
+        default=1330,
+        help="The max width that the image will be transformed down into.",
+    )
+
+    return parser.parse_args()
 
 if __name__ == "__main__":
-    camera_id = "media/ds_pan_cut.mp4"
-    main(camera_id, write_out=True, print_coord=True, disp_out=True, benchmarking=True)
+    args = parse_args()
+
+    main(
+        camera_id=args.camera_id,
+        text_prompt=args.text_prompt,
+        send_to_board=args.send_to_board,
+        print_coord=args.print_coord,
+        write_out=args.write_out,
+        disp_out=args.disp_out,
+        benchmarking=args.benchmarking,
+        test_name=args.test_name,
+        window_size=args.window_size,
+        rst_interval_mult=args.rst_interval_mult,
+        bb_check_mult=args.bb_check_mult,
+        max_img_size=args.img_size
+    )

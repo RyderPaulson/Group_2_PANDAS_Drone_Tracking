@@ -26,7 +26,7 @@ DEFAULT_DEVICE = (
 class TestCoTrackerCORE(unittest.TestCase):
     def test_ds_pan_cut(self):
         # Get video
-        video_path = "./media/ds_pan_cut.mp4"
+        video_path = "../media/ds_pan_cut.mp4"
         video_frames = []
         for frame in iio.imiter(video_path):
             video_frames.append(frame)
@@ -58,12 +58,12 @@ class TestCoTrackerCORE(unittest.TestCase):
         gc.collect()
 
         # Visualize the predicted tracks.
-        vis = Visualizer(save_dir="./media", pad_value=10, linewidth=3, mode="cool", fps=30)
+        vis = Visualizer(save_dir="../media", pad_value=10, linewidth=3, mode="cool", fps=30)
         vis.visualize(video, pred_tracks, pred_visibility, filename="t_ds_pan_cut")
 
     def test_ds_pan_full(self):
         test_name = "t_ds_pan_full"
-        src_name = "ds_pan.mp4"
+        src_name = "../media/ds_pan.mp4"
 
         # Get video
         video_path = "./media/" + src_name
@@ -97,12 +97,12 @@ class TestCoTrackerCORE(unittest.TestCase):
         gc.collect()
 
         # Visualize the predicted tracks.
-        vis = Visualizer(save_dir="./media", pad_value=10, linewidth=3, mode="cool", fps=30)
+        vis = Visualizer(save_dir="../media", pad_value=10, linewidth=3, mode="cool", fps=30)
         vis.visualize(video, pred_tracks, pred_visibility, filename=test_name)
 
     def test_ds_frame(self):
         test_name = "t_ds_frame"
-        src_name = "ds_frame.mp4"
+        src_name = "../media/ds_frame.mp4"
 
         # Get video
         video_path = "./media/" + src_name
@@ -137,7 +137,7 @@ class TestCoTrackerCORE(unittest.TestCase):
 
         # Visualize the predicted tracks.
         vis = Visualizer(
-            save_dir="./media", pad_value=10, linewidth=3, mode="cool", fps=30
+            save_dir="../media", pad_value=10, linewidth=3, mode="cool", fps=30
         )
         vis.visualize(video, pred_tracks, pred_visibility, filename=test_name)
 

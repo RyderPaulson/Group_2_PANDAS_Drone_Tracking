@@ -15,3 +15,9 @@
 /__pycache__/
 /vision/
 /temp/
+/media/tdefault.mp4
+/media/tmain_ds_frame.mp4
+/media/tmain_ds_pan.mp4
+/media/tmain_ds_pan_cut.mp4
+/simulation/TrackingSystem.asv
+/simulation/SimulateDroneTracking.slx.original
