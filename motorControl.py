@@ -1,96 +1,84 @@
 import Jetson.GPIO as GPIO
 import time
-import sys
-import select
 import numpy as np
 
-# Calculates PWM pulse width from desired angle
-def setServoAngle(angle):
-    if (angle > 180): 
-        angle = 180
-    if (angle < 0 ):
-        angle = 0
-    # 1 ms pulse min for 50 Hz
-    global minPulseWidth
-    # minPulseWidth = 5
-    minPulseWidth=3.8
-    # 2 ms pulse max for 50 Hz
-    global maxPulseWidth
-    maxPulseWidth = 10
-    pulse = ((angle * (maxPulseWidth - minPulseWidth)) / 180) + minPulseWidth;
-    return pulse
+# constants
+FREQUENCY = 50 #Hz
+PERIOD_MS = 1000 / FREQUENCY
+MIN_PULSE_WIDTH_MS = 0.05 # in % duty cycle for 0°
+MAX_PULSE_WIDTH_MS = 1.6  # in % duty cycle for 180°
+# NOTE: The vertical range of the turret is 60 to 180 degrees.
 
-# Applies exponential decay weights to a series of inputs
-def expDecay(dx):
-    alpha = 0.4
-    beta = 180
-    pulse = setServoAngle(beta*alpha*dx + 90)
-    return pulse
+current_angle = 60 # start at neutral
 
-# Rotate the motor to a specific angle.
+
+# --- Low Level Math Functions (Conversions/Formulas) ---
+
+# Converts angle (0-180) to pulse (MIN_PULSE_WIDTH_MS to MAX_PULSE_WIDTH_MS)
+def angle_to_pulse(angle):
+    angle = max(60, min(180, angle))    # ensure within 60-180 deg
+    pulse_ms = MIN_PULSE_WIDTH_MS + (angle / 180.0) * (MAX_PULSE_WIDTH_MS - MIN_PULSE_WIDTH_MS)
+    return pulse_ms
+
+# Converts pulse to duty cycle
+#       Note: pulse width is the actual duration of the "high signal" and
+#             duty cycle is the percentage of the total PWM period that the signal is high (used by Jetson.GPIO library)
+def pulse_to_duty(pulse_ms):
+    return (pulse_ms / PERIOD_MS) * 100
+
+
+# --- High Level Servo Functions (Called by CoTracker or manually) ---
+
+# Rotate the motor to a specific angle. (immediate, no decay)
 def setServo(pin, angle):
+    global current_angle
     GPIO.setmode(GPIO.BOARD)
     GPIO.setup(pin, GPIO.OUT, initial=GPIO.HIGH)
-    pwm = GPIO.PWM(pin, 50)
-    pulse = setServoAngle(angle)
-    pwm.start(pulse)
-    print(pulse)
-    print("Starting PWM")
-    # try:
-    #     while True:
-    #         if sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
-    #             line = sys.stdin.readline().strip()
-    #             if line.lower() == "q":
-    #                 break
-    #             time.sleep(0.1)
-    # except KeyboardInterrupt:
-    #     pass
-    # finally:
+    pwm = GPIO.PWM(pin, FREQUENCY)
+    
+    duty_cycle = pulse_to_duty(angle_to_pulse(angle))
+    pwm.start(duty_cycle)
     time.sleep(1)
     pwm.stop()
     GPIO.cleanup()
-    print("Stopped")
+    current_angle = angle
+    print("Set servo to ", angle, " deg.")
 
-# Applies decay function to a coordinate buffer
-def servoMove(pin, dx):
-    pulse = expDecay(dx)
-    # Instantiate GPIO pin
+# Applies exp decay function to a coordinate buffer
+# NOTE: Increase alpha if you want the servo to accelerate quickly toward the target. Decrease alpha if you want a more gradual transition.
+def servoMoveExp(pin, dx, steps=20, alpha=0.5):
+    global current_angle
+
     GPIO.setmode(GPIO.BOARD)
     GPIO.setup(pin, GPIO.OUT, initial=GPIO.HIGH)
-    pwm = GPIO.PWM(pin, 50)
-    # Set angle between 0 - 180 deg according to coordinate buffer
-    # print(pulse)
+    pwm = GPIO.PWM(pin, FREQUENCY)
+    pwm.start(pulse_to_duty(angle_to_pulse(current_angle)))
+    
     try:
-        pwm.start(pulse)
-        angle = (pulse - minPulseWidth)*180/(maxPulseWidth - minPulseWidth)
-        print(angle)
-        driveFrequency = 20 #Hz
-        time.sleep(1/driveFrequency)
-        pwm.stop()
+        target_angle = current_angle + dx
+        print("Target angle: ", target_angle, "°")
+
+        for step in range(steps):
+            # This uses the exponetial decay formula: 1 - e^(-kt)
+            #   Here, -k is alpha and t is the time, or here, proportion of step until finished
+            fraction = (1 - np.exp(-alpha * ((step + 1) / steps)))  # amount to change per step
+            
+            current_angle += (target_angle - current_angle) * fraction
+
+            current_angle = max(60, min(180, current_angle))    #ensure within 60-180 deg
+
+            # ypdate angle
+            pwm.ChangeDutyCycle(pulse_to_duty(angle_to_pulse(current_angle)))
+
+            print(f"Step {step+1}/{steps} → angle={current_angle:.2f}°")
+            time.sleep(0.1)
+
+        pwm.ChangeDutyCycle(pulse_to_duty(angle_to_pulse(target_angle))) #ensures exact angle always reached
+
     finally:
         pwm.stop()
         GPIO.cleanup()
-        # print("Stopped")
 
-# Simulate receiving coordinate buffer from tracking module and move accordingly
-# def simulate():
-#     servoMove(32, 1)
-#     time.sleep(1)
-#     dx.append(1)
-#     dx.append(.8)
-#     dx.append(.5)
-#     dx.append(.2)
-#     dx.append(.001)
-#     servoMove(32, dx)
-#     # Reset
-#     time.sleep(1)
-#     setServo(32, 0)
-
-setServo(32,50)
-time.sleep(1)
-servoMove(32,1)
-servoMove(32,.8)
-servoMove(32,.2)
-servoMove(32,.2)
-servoMove(32,.2)
-servoMove(32,-1)
+setServo(32,60)     # set angle to 60 degrees
+servoMoveExp(32, 120)   # the camera should now be 180 degrees (60+120)
+setServo(32,180)
