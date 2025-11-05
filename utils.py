@@ -4,12 +4,17 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 import time
+import motorControl as mc
+from motorControl import trackCoords, servo
 
 DEFAULT_DEVICE = (
     "cuda"
     if torch.cuda.is_available()
     else "mps" if torch.backends.mps.is_available() else "cpu"
 )
+
+_servoX = servo(32)
+_servoY = servo(33)
 
 def preprocess_frame(img_array, max_size):
     """
@@ -65,9 +70,12 @@ def prediction_in_box(query_point, box) -> list:
 
 # TODO Send sensor_coord to motor control
 def send_coord(sensor_coord) -> None:
+    if sensor_coord is None:
+        return
+    
+    
     # Normalize the sensor coordinate value
-
-    return
+    trackCoords(_servoX, _servoY, sensor_coord[0], sensor_coord[1])
 
 def scale_coord(coord, factor):
     return [int(factor*coord[0]), int(factor*coord[1])]
@@ -115,9 +123,9 @@ class IOOptions:
         if not self.benchmarking:
             return
 
-    def run(self, sensor_coord, frame=None) -> None:
+    def run(self, normalized_coord, sensor_coord, frame=None) -> None:
         if self.send_to_board:
-            send_coord(sensor_coord)
+            send_coord(normalized_coord)
 
         if self.write_out:
             self.visualizer.add_frame(sensor_coord, frame)

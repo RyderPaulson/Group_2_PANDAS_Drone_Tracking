@@ -5,6 +5,7 @@ import gc
 
 from CoTrackerCORE import CoTrackerCORE
 from DetectionSystem import GroundingDINOCORE, find_sensor
+from motorControl import trackCoords, servo
 import utils
 
 
@@ -49,6 +50,10 @@ def main(camera_id,
                                  disp_out,
                                  benchmarking,
                                  capture)
+
+    fps = int(capture.get(cv2.CAP_PROP_FPS))
+    width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
     frames_since_rst = 0
     sensor_coord = None
@@ -99,13 +104,18 @@ def main(camera_id,
             frame_tensor_norm
         )
         if sensor_coord is None or sensor_coord.shape == torch.Size([1]):
+            norm_coord = None
             sensor_coord = None
         else:
-            sensor_coord = utils.scale_coord(sensor_coord[-1, -1, -1].tolist(), scale)
+            norm_coord = sensor_coord[-1, -1, -1].tolist()
+
+
+
+            sensor_coord = utils.scale_coord(norm_coord, scale)
 
         frames_since_rst += 1
 
-        io_options.run(sensor_coord, frame)
+        io_options.run(norm_coord, sensor_coord, frame)
 
     del io_options # Call destructor which will print results
 

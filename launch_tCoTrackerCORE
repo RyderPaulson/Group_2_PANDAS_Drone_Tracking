@@ -1,0 +1,1 @@
+/home/ryder/Projects/Group_2_PANDAS_Drone_Tracking/.venv/bin/python /home/ryder/.local/share/JetBrains/Toolbox/apps/pycharm/plugins/python-ce/helpers/pycharm/_jb_unittest_runner.py --target tCoTrackerCORE.TestCoTrackerCORE.test_ds_pan_cut

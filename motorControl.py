@@ -103,8 +103,8 @@ baseServo = servo(33)
 # baseServo.setServoGivenPulseMS(400)
 # baseServo.setServo(0)
 
-for i in range(100):
-    trackCoords(baseServo, cameraServo, 1, 1)
+#for i in range(100):
+#    trackCoords(baseServo, cameraServo, 1, 1)
 
 
 # servo.servoMoveExp(32, 1)
