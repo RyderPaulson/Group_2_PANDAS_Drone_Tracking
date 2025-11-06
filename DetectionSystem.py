@@ -39,9 +39,9 @@ class GroundingDINOCORE:
 
     def detect(self, frame: torch.Tensor):
         """
-        Detect objects in the frame.
+        Detect objects in the frame and return only the highest-scoring detection.
         :param frame: Input image as torch tensor (C, H, W) in RGB format with values 0-255
-        :return: boxes, logits, phrases
+        :return: boxes, logits, phrases (single detection with highest score, or empty if no detections)
         """
         # Convert tensor to PIL Image
         if frame.dtype != torch.uint8:
@@ -75,12 +75,20 @@ class GroundingDINOCORE:
         logits = results["scores"]
         phrases = results["labels"]
 
-        # Convert boxes from xyxy (pixel coords) to cxcywh (normalized) format to match original API
-        h, w = target_size[0]
-
         # Handle case when no detections are found
         if len(boxes) == 0:
             return torch.empty((0, 4)), torch.empty(0), []
+
+        # Find the index of the highest scoring detection
+        max_score_idx = torch.argmax(logits)
+
+        # Keep only the highest scoring detection
+        boxes = boxes[max_score_idx:max_score_idx+1]
+        logits = logits[max_score_idx:max_score_idx+1]
+        phrases = [phrases[max_score_idx]]
+
+        # Convert boxes from xyxy (pixel coords) to cxcywh (normalized) format to match original API
+        h, w = target_size[0]
 
         boxes_cxcywh = torch.zeros_like(boxes)
         boxes_cxcywh[:, 0] = (boxes[:, 0] + boxes[:, 2]) / 2 / w  # center_x
