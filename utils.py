@@ -1,10 +1,6 @@
 # PyPi packages
 import torch
 import cv2
-import numpy as np
-import matplotlib.pyplot as plt
-import time
-import motorControl as mc
 from motorControl import trackCoords, servo
 
 DEFAULT_DEVICE = (
