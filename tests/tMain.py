@@ -38,3 +38,12 @@ class TestMain(unittest.TestCase):
             test_name=test_name,
             disp_out=True
         )
+
+    def test_motor_control(self):
+        test_name = "main_motor_control"
+        src_path = "media/ds_pan_cut.mp4"
+        main(src_path,
+             test_name=test_name,
+             print_coord=True,
+             send_to_board=True,
+             )

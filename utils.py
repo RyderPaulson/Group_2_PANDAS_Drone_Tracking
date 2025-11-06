@@ -68,10 +68,10 @@ def prediction_in_box(query_point, box) -> list:
 def send_coord(sensor_coord) -> None:
     if sensor_coord is None:
         return
-    
-    
+
     # Normalize the sensor coordinate value
-    trackCoords(_servoX, _servoY, sensor_coord[0], sensor_coord[1])
+    print(sensor_coord)
+    # trackCoords(_servoX, _servoY, sensor_coord[0], sensor_coord[1])
 
 def scale_coord(coord, factor):
     return [int(factor*coord[0]), int(factor*coord[1])]
@@ -119,7 +119,7 @@ class IOOptions:
         if not self.benchmarking:
             return
 
-    def run(self, normalized_coord, sensor_coord, frame=None) -> None:
+    def run(self, sensor_coord, normalized_coord, frame=None) -> None:
         if self.send_to_board:
             send_coord(normalized_coord)
 

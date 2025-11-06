@@ -1,11 +1,9 @@
 import torch
 import cv2
 import argparse
-import gc
 
 from CoTrackerCORE import CoTrackerCORE
 from DetectionSystem import GroundingDINOCORE, find_sensor
-from motorControl import trackCoords, servo
 import utils
 
 
@@ -43,6 +41,9 @@ def main(camera_id,
         print("Error: Could not open camera.")
         exit()
 
+    width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
     io_options = utils.IOOptions(test_name,
                                  send_to_board,
                                  print_coord,
@@ -50,10 +51,6 @@ def main(camera_id,
                                  disp_out,
                                  benchmarking,
                                  capture)
-
-    fps = int(capture.get(cv2.CAP_PROP_FPS))
-    width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
     frames_since_rst = 0
     sensor_coord = None
@@ -104,18 +101,17 @@ def main(camera_id,
             frame_tensor_norm
         )
         if sensor_coord is None or sensor_coord.shape == torch.Size([1]):
-            norm_coord = None
             sensor_coord = None
+            normalized_coord = None
         else:
-            norm_coord = sensor_coord[-1, -1, -1].tolist()
+            scaled_coord = sensor_coord[-1, -1, -1].tolist()
+            sensor_coord = utils.scale_coord(scaled_coord, scale)
 
-
-
-            sensor_coord = utils.scale_coord(norm_coord, scale)
+            normalized_coord = normalize_coord(scaled_coord, width, height)
 
         frames_since_rst += 1
 
-        io_options.run(norm_coord, sensor_coord, frame)
+        io_options.run(sensor_coord, normalized_coord, frame)
 
     del io_options # Call destructor which will print results
 
@@ -128,6 +124,17 @@ def camera_id_type(value):
         return int(value)
     except ValueError:
         return value
+
+def normalize_coord(sensor_coord, w, h):
+    normalized_coord = [sensor_coord[0]/w,
+                        sensor_coord[1]/h,
+                        ]
+
+    normalized_coord[0] = normalized_coord[0] - 0.5
+    normalized_coord[1] = -1 * normalized_coord[1] + 0.5
+
+    return normalized_coord
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -199,6 +206,7 @@ def parse_args():
     )
 
     return parser.parse_args()
+
 
 if __name__ == "__main__":
     args = parse_args()
