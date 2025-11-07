@@ -39,7 +39,7 @@ class servo:
             angle = self.dx * 90 + 90
             self.sum = alpha*(self.sum + angle)
             output_angle = beta * self.sum
-            output_angle = max(0, min(180, output_angle))    #ensure within 0-180 deg
+            output_angle = max(45, min(120, output_angle))    #ensure within 0-180 deg
             self.dx = coord
 
             print(f"angle={output_angle:.2f}°")
@@ -87,10 +87,10 @@ def trackCoords(servoX, servoY, dx, dy):
     s1Angle = servoX.servoMoveExp(dx)
     s2Angle = servoY.servoMoveExp(dy)
 
-    pwm1.ChangeDutyCycle(pulse_to_duty(angle_to_pulse(s1Angle)))
-    pwm2.ChangeDutyCycle(pulse_to_duty(angle_to_pulse(s2Angle)))
+    pwm1.start(pulse_to_duty(angle_to_pulse(s1Angle)))
+    pwm2.start(pulse_to_duty(angle_to_pulse(s2Angle)))
 
-    time.sleep(.5)
+    time.sleep(.1)
     
     pwm1.stop()
     pwm2.stop()
