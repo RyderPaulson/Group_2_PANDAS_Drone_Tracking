@@ -1,16 +1,19 @@
 # PyPi packages
 import torch
 import cv2
-from motorControl import trackCoords, servo
+
+try:
+    from motorControl import trackCoords, servo
+    _servoX = servo(32)
+    _servoY = servo(33)
+except:
+    print("Not currently running on Jetson. Motorcontrols cannot be used.")
 
 DEFAULT_DEVICE = (
     "cuda"
     if torch.cuda.is_available()
     else "mps" if torch.backends.mps.is_available() else "cpu"
 )
-
-_servoX = servo(32)
-_servoY = servo(33)
 
 def preprocess_frame(img_array, max_size):
     """
