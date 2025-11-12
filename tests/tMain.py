@@ -47,3 +47,13 @@ class TestMain(unittest.TestCase):
              print_coord=True,
              send_to_board=True,
         )
+
+    def test_ozz(self):
+        test_name = "oz"
+        src_path = "media/SuccessfulOz.mp4"
+        main(src_path,
+             test_name=test_name,
+             disp_out=True,
+             write_out=True,
+             target_color=[54, 36, 61]
+        )

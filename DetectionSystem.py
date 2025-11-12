@@ -99,11 +99,12 @@ class GroundingDINOCORE:
         return boxes_cxcywh, logits, phrases
 
 
-def find_sensor(img, box, target_color=[128, 128, 128], th=0.3):
+def find_sensor(img, box, target_color, th=0.3):
     """
     Given a bounding box around the drone as obtained by GroundingDINO, will find the specific point to feed into
     CoTracker.
     Note, since color is an important distinguisher, we do not convert the image to gray.
+    :param target_color:
     :param img: image to annotate. Must be in RGB format
     :param box: can either be in tensor form or already converted to a 1x4 numpy array.
     :return query_point: [x, y] coordinates
