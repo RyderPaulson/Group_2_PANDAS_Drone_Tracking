@@ -37,12 +37,16 @@ class GroundingDINOCORE:
         # HuggingFace API only uses a single threshold parameter
         self.threshold = box_threshold
 
+        # Return if no predictions of sufficient confidence are made
+        self.null_response = torch.empty((0, 4)), torch.empty(0), []
+
     def detect(self, frame: torch.Tensor):
         """
         Detect objects in the frame and return only the highest-scoring detection.
         :param frame: Input image as torch tensor (C, H, W) in RGB format with values 0-255
         :return: boxes, logits, phrases (single detection with highest score, or empty if no detections)
         """
+
         # Convert tensor to PIL Image
         if frame.dtype != torch.uint8:
             frame = frame.byte()
@@ -77,7 +81,7 @@ class GroundingDINOCORE:
 
         # Handle case when no detections are found
         if len(boxes) == 0:
-            return torch.empty((0, 4)), torch.empty(0), []
+            return self.null_response
 
         # Find the index of the highest scoring detection
         max_score_idx = torch.argmax(logits)
@@ -86,6 +90,10 @@ class GroundingDINOCORE:
         boxes = boxes[max_score_idx:max_score_idx+1]
         logits = logits[max_score_idx:max_score_idx+1]
         phrases = [phrases[max_score_idx]]
+
+        # Handle case in which groundingDINO doesn't produce any predictions of sufficient confidence
+        if logits < 0.5:
+            return self.null_response
 
         # Convert boxes from xyxy (pixel coords) to cxcywh (normalized) format to match original API
         h, w = target_size[0]

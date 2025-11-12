@@ -7,7 +7,7 @@ class TestMain(unittest.TestCase):
         src_path = "media/ds_pan_cut.mp4"
         main(src_path,
              test_name=test_name,
-             write_out=True,
+             disp_out=True,
              print_coord=True,
              benchmarking=True,
              )
