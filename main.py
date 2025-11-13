@@ -24,7 +24,8 @@ def main(camera_id,
          window_size=16,
          rst_interval_mult=16,
          bb_check_mult=8,
-         max_img_size=800) -> None:
+         max_img_size=800,
+         target_color=[128, 128, 128]) -> None:
 
     # Config variables
     rst_interval = window_size * rst_interval_mult
@@ -55,6 +56,9 @@ def main(camera_id,
     frames_since_rst = 0
     sensor_coord = None
 
+    # Help variable
+    no_prediction_size = torch.Size([0, 4])
+
     while True:
         # Capture new frame
         ret, frame = capture.read()
@@ -76,7 +80,12 @@ def main(camera_id,
             # Force reset state
             # Run full tracking workflow
             box, _, _ = gd.detect(frame_tensor)
-            query_point = find_sensor(frame_tensor, box)
+
+            # TODO Make it so that if no prediction is made grounding DINO is run repeatedly
+            # while box.size() == no_prediction_size:
+            #     box, _, _ = gd.detect(frame_tensor)
+
+            query_point = find_sensor(frame_tensor, box, target_color)
             cotracker.soft_rst(query_point)
 
             frames_since_rst = 0
@@ -87,12 +96,16 @@ def main(camera_id,
             # IMPORTANT: Pass frame_tensor (0-255 range) to GroundingDINO
             box, _, _ = gd.detect(frame_tensor)
 
+            # TODO Make it so that if no prediction is made grounding DINO is run repeatedly
+            # while box.size() == no_prediction_size:
+            #    box, _, _ = gd.detect(frame_tensor)
+
             # Check that the latest prediction is still in the box
             reset_qp = utils.prediction_in_box(sensor_coord, box)
 
             if not reset_qp:
                 # Reset with new query_point
-                query_point = find_sensor(frame_tensor, box)
+                query_point = find_sensor(frame_tensor, box, target_color)
                 cotracker.hard_rst(query_point)
 
                 frames_since_rst = 0

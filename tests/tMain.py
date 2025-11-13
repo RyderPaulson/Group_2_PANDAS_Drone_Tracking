@@ -7,7 +7,7 @@ class TestMain(unittest.TestCase):
         src_path = "media/ds_pan_cut.mp4"
         main(src_path,
              test_name=test_name,
-             write_out=True,
+             disp_out=True,
              print_coord=True,
              benchmarking=True,
              )
@@ -46,4 +46,14 @@ class TestMain(unittest.TestCase):
              test_name=test_name,
              print_coord=True,
              send_to_board=True,
+        )
+
+    def test_ozz(self):
+        test_name = "oz"
+        src_path = "media/SuccessfulOz.mp4"
+        main(src_path,
+             test_name=test_name,
+             disp_out=True,
+             write_out=True,
+             target_color=[54, 36, 61]
         )
