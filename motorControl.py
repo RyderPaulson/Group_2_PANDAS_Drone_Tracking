@@ -7,12 +7,12 @@ FREQUENCY = 50 #Hz
 PERIOD_MS = 1000 / FREQUENCY
 MIN_PULSE_WIDTH_MS = 0.5 # in % duty cycle for 0°
 MAX_PULSE_WIDTH_MS = 2  # in % duty cycle for 180°
+COORD2DEG = 23
 
 # --- Low Level Math Functions (Conversions/Formulas) ---
 
 # Converts angle (0-180) to pulse (MIN_PULSE_WIDTH_MS to MAX_PULSE_WIDTH_MS)
 def angle_to_pulse(angle):
-    angle = max(0, min(180, angle))    # ensure within 90-140 deg
     pulse_ms = MIN_PULSE_WIDTH_MS + (angle / 180.0) * (MAX_PULSE_WIDTH_MS - MIN_PULSE_WIDTH_MS)
     return pulse_ms
 
@@ -27,8 +27,8 @@ def pulse_to_duty(pulse_ms):
 class servo:
     def __init__(self, pin):
         self.pin = pin
-        # self.dx = 0
-        self.dx =90
+        self.prev_coord = 0
+        self.prev_angle = 90
         self.sum = 0
 
     def getPin(self):
@@ -48,17 +48,18 @@ class servo:
     #     print(f"angle={angle:.2f}°")
 
     #     return angle
-    
-    def servoMove(self, coord, kd=-0.5):
-        # Add between -15*correction -> 15*correction deg to previous
-        angle = 15*coord + 15 * kd*(coord-self.dx) + self.dx
-        angle = max(0, min(180, angle)) 
-        self.dx = angle
-        # angle = self.dx * 90 + 90
-        # self.sum = alpha * (self.sum + angle)
-        # output_angle = beta * self.sum
-        # self.dx = coord
+    def servoMove(self, coord, kd=15):
+        # PD Controller
+        angle = (COORD2DEG*coord - kd*COORD2DEG*(coord-self.prev_coord)) + self.prev_angle
+        # Clamp camera servo to 90-180
+        if(self.pin==32):
+            angle = (max(90,min(180,angle)))
+        # Clamp base servo to 0-180
+        else:
+            angle = (max(0,min(180,angle)))
 
+        self.prev_coord = coord
+        self.prev_angle = angle
         print(f"angle={angle:.2f}°")
 
         return angle
@@ -103,12 +104,12 @@ def trackCoords(servoX, servoY, dx, dy):
     GPIO.setup(pin1, GPIO.OUT, initial=GPIO.HIGH)
     pwm1 = GPIO.PWM(pin1, FREQUENCY)
     pwm1.start(pulse_to_duty(angle_to_pulse(s1Angle)))
-
+    
     GPIO.setup(pin2, GPIO.OUT, initial=GPIO.HIGH)
     pwm2 = GPIO.PWM(pin2, FREQUENCY)
     pwm2.start(pulse_to_duty(angle_to_pulse(s2Angle)))
 
-    time.sleep(.08)
+    time.sleep(0.1)
     
     pwm1.stop()
     pwm2.stop()
@@ -149,12 +150,11 @@ def trackCoords(servoX, servoY, dx, dy):
 
 # ========================================
 
-
 # cameraServo = servo(32)
 # baseServo = servo(33)
 
-# cameraServo.setServo(180)
-# baseServo.setServo(0)
+# cameraServo.setServo(113)
+# baseServo.setServo(113)
 
 # [trackCoords(cameraServo, baseServo, i, 0) for i in np.arange(0, 1, 0.01)]
 
