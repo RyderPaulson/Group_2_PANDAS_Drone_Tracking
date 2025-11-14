@@ -148,8 +148,8 @@ def normalize_coord(sensor_coord, w, h):
                         sensor_coord[1]/h,
                         ]
 
-    normalized_coord[0] = normalized_coord[0] - 0.5
-    normalized_coord[1] = -1 * normalized_coord[1] + 0.5
+    normalized_coord[0] = 2 * normalized_coord[0] - 1
+    normalized_coord[1] = -2 * normalized_coord[1] + 1
 
     return normalized_coord
 
