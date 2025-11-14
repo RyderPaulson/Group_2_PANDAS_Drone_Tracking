@@ -52,7 +52,6 @@ def print_frames_analyzed(i, modu):
     if i % modu == 0:
         print(f"{i} frames processed")
 
-# TODO Implement
 def prediction_in_box(query_point, box) -> list:
     # Check that the query point is in the box
     if box.shape[0] > 1:
@@ -67,14 +66,12 @@ def prediction_in_box(query_point, box) -> list:
     else:
         return False
 
-# TODO Send sensor_coord to motor control
 def send_coord(sensor_coord) -> None:
     if sensor_coord is None:
         return
 
-    # Normalize the sensor coordinate value
     print(sensor_coord)
-    # trackCoords(_servoX, _servoY, sensor_coord[0], sensor_coord[1])
+    trackCoords(_servoX, _servoY, sensor_coord[0], sensor_coord[1])
 
 def scale_coord(coord, factor):
     return [int(factor*coord[0]), int(factor*coord[1])]
@@ -82,13 +79,11 @@ def scale_coord(coord, factor):
 class IOOptions:
     def __init__(self,
                  test_name: str,
-                 send_to_board: bool,
                  print_coord: bool,
                  write_out: bool,
                  disp_out: bool,
                  benchmarking: bool,
                  capture: cv2.VideoCapture):
-        self.send_to_board = send_to_board
         self.print_coord = print_coord
         self.write_out = write_out
         self.disp_out = disp_out
@@ -123,9 +118,6 @@ class IOOptions:
             return
 
     def run(self, sensor_coord, normalized_coord, frame=None) -> None:
-        if self.send_to_board:
-            send_coord(normalized_coord)
-
         if self.write_out:
             self.visualizer.add_frame(sensor_coord, frame)
 

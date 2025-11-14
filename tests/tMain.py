@@ -7,9 +7,8 @@ class TestMain(unittest.TestCase):
         src_path = "media/ds_pan_cut.mp4"
         main(src_path,
              test_name=test_name,
-             disp_out=True,
              print_coord=True,
-             benchmarking=True,
+             send_to_board=True,
              )
 
     def test_ds_frame(self):

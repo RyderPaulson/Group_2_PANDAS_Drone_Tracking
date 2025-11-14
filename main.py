@@ -46,7 +46,6 @@ def main(camera_id,
     height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
     io_options = utils.IOOptions(test_name,
-                                 send_to_board,
                                  print_coord,
                                  write_out,
                                  disp_out,
@@ -58,6 +57,7 @@ def main(camera_id,
 
     # Help variable
     no_prediction_size = torch.Size([0, 4])
+    last_coord = None
 
     while True:
         # Capture new frame
@@ -124,7 +124,12 @@ def main(camera_id,
 
         frames_since_rst += 1
 
+        if send_to_board and (sensor_coord is not None) and (sensor_coord != last_coord):
+            utils.send_coord(normalized_coord)
+
         io_options.run(sensor_coord, normalized_coord, frame)
+
+        last_coord = sensor_coord
 
     del io_options # Call destructor which will print results
 
