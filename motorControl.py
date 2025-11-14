@@ -7,7 +7,7 @@ FREQUENCY = 50 #Hz
 PERIOD_MS = 1000 / FREQUENCY
 MIN_PULSE_WIDTH_MS = 0.5 # in % duty cycle for 0°
 MAX_PULSE_WIDTH_MS = 2  # in % duty cycle for 180°
-COORD2DEG = 23
+COORD2DEG = 13
 
 # --- Low Level Math Functions (Conversions/Formulas) ---
 
@@ -30,6 +30,8 @@ class servo:
         self.prev_coord = 0
         self.prev_angle = 90
         self.sum = 0
+        self.counter = 0
+        self.pwm = 0
 
     def getPin(self):
         return self.pin
@@ -48,12 +50,13 @@ class servo:
     #     print(f"angle={angle:.2f}°")
 
     #     return angle
-    def servoMove(self, coord, kd=15):
+    def servoMove(self, coord, kd=3):
         # PD Controller
-        angle = (COORD2DEG*coord - kd*COORD2DEG*(coord-self.prev_coord)) + self.prev_angle
+        # angle = (COORD2DEG*coord - kd*COORD2DEG*(coord-self.prev_coord)) + self.prev_angle
+        angle = COORD2DEG*coord+self.prev_angle
         # Clamp camera servo to 90-180
         if(self.pin==32):
-            angle = (max(90,min(180,angle)))
+            angle = (max(80,min(140,angle)))
         # Clamp base servo to 0-180
         else:
             angle = (max(0,min(180,angle)))
@@ -92,13 +95,25 @@ class servo:
         GPIO.cleanup()
         print("Set servo to ", 45, " deg.")
 
-
+    # def startPWM(self, angle):
+    #     GPIO.setmode(GPIO.BOARD)
+    #     GPIO.setup(self.pin, GPIO.OUT, initial=GPIO.HIGH)
+    #     self.pwm = GPIO.PWM(self.pin, FREQUENCY)
+    #     self.pwm.start(pulse_to_duty(angle_to_pulse(angle)))
+    # def stopPWM(self):
+    #     if(self.pwm != 0):
+    #         self.pwm.stop()
+    #         GPIO.cleanup()
 def trackCoords(servoX, servoY, dx, dy):
+    # s1Angle = servoX.servoMove(dx)
+    # s2Angle = servoY.servoMove(dy)
+    # servoX.startPWM(s1Angle)
+    # servoY.startPWM(s2Angle)
     pin1 = servoX.getPin()
     pin2 = servoY.getPin()
+
     s1Angle = servoX.servoMove(dx)
     s2Angle = servoY.servoMove(dy)
-
     GPIO.setmode(GPIO.BOARD)
 
     GPIO.setup(pin1, GPIO.OUT, initial=GPIO.HIGH)
@@ -114,6 +129,10 @@ def trackCoords(servoX, servoY, dx, dy):
     pwm1.stop()
     pwm2.stop()
     GPIO.cleanup()
+    # elif(servoX.counter==8):
+    #     servoX.counter = 0
+        
+    
 
 
 # import cv2
@@ -153,8 +172,8 @@ def trackCoords(servoX, servoY, dx, dy):
 # cameraServo = servo(32)
 # baseServo = servo(33)
 
-# cameraServo.setServo(113)
-# baseServo.setServo(113)
+# cameraServo.setServo(90)
+# baseServo.setServo(90)
 
 # [trackCoords(cameraServo, baseServo, i, 0) for i in np.arange(0, 1, 0.01)]
 

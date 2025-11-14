@@ -5,6 +5,7 @@ import argparse
 from CoTrackerCORE import CoTrackerCORE
 from DetectionSystem import GroundingDINOCORE, find_sensor
 import utils
+import motorControl
 
 
 DEFAULT_DEVICE = (
@@ -163,6 +164,7 @@ def tracking_loop(
     if sensor_coord is None or (sensor_coord.shape == torch.Size([1])):
         scaled_coord = None
         normalized_coord = None
+        # utils.send_coord(None)
     else:
         sensor_coord = sensor_coord[-1, -1, -1].tolist()
         scaled_coord = utils.scale_coord(sensor_coord, scale)

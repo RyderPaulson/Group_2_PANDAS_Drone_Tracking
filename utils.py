@@ -68,10 +68,12 @@ def prediction_in_box(query_point, box) -> list:
 
 def send_coord(sensor_coord) -> None:
     if sensor_coord is None:
+        # _servoX.stopPWM()
+        # _servoY.stopPWM()
         return
 
     print(sensor_coord)
-    # trackCoords(_servoX, _servoY, sensor_coord[0], sensor_coord[1])
+    trackCoords(_servoX, _servoY, sensor_coord[0], sensor_coord[1])
 
 def scale_coord(coord, factor):
     return [int(factor*coord[0]), int(factor*coord[1])]
