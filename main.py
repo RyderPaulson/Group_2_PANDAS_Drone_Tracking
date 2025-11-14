@@ -13,19 +13,22 @@ DEFAULT_DEVICE = (
     else "mps" if torch.backends.mps.is_available() else "cpu"
 )
 
-def main(camera_id,
-         text_prompt="drone",
-         send_to_board=False,
-         print_coord=False,
-         write_out=False,
-         disp_out=False,
-         benchmarking=False,
-         test_name="default",
-         window_size=16,
-         rst_interval_mult=16,
-         bb_check_mult=8,
-         max_img_size=800,
-         target_color=[128, 128, 128]) -> None:
+
+def main(
+    camera_id,
+    text_prompt="drone",
+    send_to_board=False,
+    print_coord=False,
+    write_out=False,
+    disp_out=False,
+    benchmarking=False,
+    test_name="default",
+    window_size=16,
+    rst_interval_mult=16,
+    bb_check_mult=8,
+    max_img_size=800,
+    target_color=[128, 128, 128],
+) -> None:
 
     # Config variables
     rst_interval = window_size * rst_interval_mult
@@ -45,19 +48,16 @@ def main(camera_id,
     width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-    io_options = utils.IOOptions(test_name,
-                                 send_to_board,
-                                 print_coord,
-                                 write_out,
-                                 disp_out,
-                                 benchmarking,
-                                 capture)
+    io_options = utils.IOOptions(
+        test_name, print_coord, write_out, disp_out, benchmarking, capture
+    )
 
     frames_since_rst = 0
     sensor_coord = None
 
     # Help variable
     no_prediction_size = torch.Size([0, 4])
+    last_coord = None
 
     while True:
         # Capture new frame
@@ -76,60 +76,103 @@ def main(camera_id,
             frame_rgb, max_img_size
         )
 
-        if frames_since_rst >= rst_interval or is_first_step:
-            # Force reset state
-            # Run full tracking workflow
-            box, _, _ = gd.detect(frame_tensor)
-
-            # TODO Make it so that if no prediction is made grounding DINO is run repeatedly
-            # while box.size() == no_prediction_size:
-            #     box, _, _ = gd.detect(frame_tensor)
-
-            query_point = find_sensor(frame_tensor, box, target_color)
-            cotracker.soft_rst(query_point)
-
-            frames_since_rst = 0
-            is_first_step = False
-
-        elif frames_since_rst % bb_check_interval == 0:
-            # Check tracked point still in drone
-            # IMPORTANT: Pass frame_tensor (0-255 range) to GroundingDINO
-            box, _, _ = gd.detect(frame_tensor)
-
-            # TODO Make it so that if no prediction is made grounding DINO is run repeatedly
-            # while box.size() == no_prediction_size:
-            #    box, _, _ = gd.detect(frame_tensor)
-
-            # Check that the latest prediction is still in the box
-            reset_qp = utils.prediction_in_box(sensor_coord, box)
-
-            if not reset_qp:
-                # Reset with new query_point
-                query_point = find_sensor(frame_tensor, box, target_color)
-                cotracker.hard_rst(query_point)
-
-                frames_since_rst = 0
-
-        sensor_coord, _ = cotracker.run_tracker(
-            frame_tensor_norm
+        frames_since_rst, is_first_step, sensor_coord, normalized_coord = tracking_loop(
+            frames_since_rst,
+            is_first_step,
+            sensor_coord,
+            rst_interval,
+            bb_check_interval,
+            frame_tensor,
+            frame_tensor_norm,
+            gd,
+            cotracker,
+            target_color,
+            scale,
+            width,
+            height,
+            no_prediction_size
         )
-        if sensor_coord is None or sensor_coord.shape == torch.Size([1]):
-            sensor_coord = None
-            normalized_coord = None
-        else:
-            scaled_coord = sensor_coord[-1, -1, -1].tolist()
-            sensor_coord = utils.scale_coord(scaled_coord, scale)
 
-            normalized_coord = normalize_coord(scaled_coord, width, height)
-
-        frames_since_rst += 1
+        if send_to_board and (sensor_coord is not None) and (sensor_coord != last_coord):
+            utils.send_coord(normalized_coord)
 
         io_options.run(sensor_coord, normalized_coord, frame)
 
-    del io_options # Call destructor which will print results
+        last_coord = sensor_coord
+
+    del io_options  # Call destructor which will print results
 
     capture.release()
     cv2.destroyAllWindows()
+
+
+def tracking_loop(
+    frames_since_rst,
+    is_first_step,
+    sensor_coord,
+    rst_interval,
+    bb_check_interval,
+    frame_tensor,
+    frame_tensor_norm,
+    gd,
+    cotracker,
+    target_color,
+    scale,
+    width,
+    height,
+    no_prediction_size
+):
+    """Execute the core tracking logic for one frame.
+
+    Returns:
+        tuple: (frames_since_rst, is_first_step, sensor_coord, normalized_coord)
+    """
+    if frames_since_rst >= rst_interval or is_first_step:
+        # Force reset state
+        # Run full tracking workflow
+        box, _, _ = gd.detect(frame_tensor)
+
+        if box.size() == no_prediction_size:
+            return rst_interval + 1, True, None, None
+
+        query_point = find_sensor(frame_tensor, box, target_color)
+        cotracker.soft_rst(query_point)
+
+        frames_since_rst = 0
+        is_first_step = False
+
+    elif frames_since_rst % bb_check_interval == 0:
+        # Check tracked point still in drone
+        # IMPORTANT: Pass frame_tensor (0-255 range) to GroundingDINO
+        box, _, _ = gd.detect(frame_tensor)
+
+        if box.size() == no_prediction_size:
+            return rst_interval + 1, True, None, None
+
+        # Check that the latest prediction is still in the box
+        reset_qp = utils.prediction_in_box(sensor_coord, box)
+
+        if not reset_qp:
+            # Reset with new query_point
+            query_point = find_sensor(frame_tensor, box, target_color)
+            cotracker.hard_rst(query_point)
+
+            frames_since_rst = 0
+
+    sensor_coord, _ = cotracker.run_tracker(frame_tensor_norm)
+    if sensor_coord is None or (sensor_coord.shape == torch.Size([1])):
+        scaled_coord = None
+        normalized_coord = None
+    else:
+        sensor_coord = sensor_coord[-1, -1, -1].tolist()
+        scaled_coord = utils.scale_coord(sensor_coord, scale)
+
+        normalized_coord = normalize_coord(scaled_coord, width, height)
+
+    frames_since_rst += 1
+
+    return frames_since_rst, is_first_step, scaled_coord, normalized_coord
+
 
 def camera_id_type(value):
     """Convert camera_id to int if possible, otherwise keep as string."""
