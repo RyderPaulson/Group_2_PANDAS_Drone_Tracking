@@ -60,30 +60,45 @@ def main(
     last_coord = None
 
     while True:
-        frames_since_rst, is_first_step, last_coord, sensor_coord, should_continue = (
-            tracking_loop(
-                capture,
-                cotracker,
-                gd,
-                io_options,
-                frames_since_rst,
-                is_first_step,
-                last_coord,
-                sensor_coord,
-                max_img_size,
-                rst_interval,
-                bb_check_interval,
-                window_size,
-                target_color,
-                send_to_board,
-                width,
-                height,
-                no_prediction_size,
-            )
+        # Capture new frame
+        ret, frame = capture.read()
+
+        # If the frame was not read successfully, break the loop
+        if not ret:
+            print("Error: Could not read frame. Exiting...")
+            break
+
+        # Convert BGR to RGB
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        # Get preprocessed frames
+        frame_tensor_norm, frame_tensor, scale = utils.preprocess_frame(
+            frame_rgb, max_img_size
         )
 
-        if not should_continue:
-            break
+        frames_since_rst, is_first_step, sensor_coord, normalized_coord = tracking_loop(
+            frames_since_rst,
+            is_first_step,
+            sensor_coord,
+            rst_interval,
+            bb_check_interval,
+            frame_tensor,
+            frame_tensor_norm,
+            gd,
+            cotracker,
+            target_color,
+            scale,
+            width,
+            height,
+            no_prediction_size
+        )
+
+        if send_to_board and (sensor_coord is not None) and (sensor_coord != last_coord):
+            utils.send_coord(normalized_coord)
+
+        io_options.run(sensor_coord, normalized_coord, frame)
+
+        last_coord = sensor_coord
 
     del io_options  # Call destructor which will print results
 
@@ -92,54 +107,33 @@ def main(
 
 
 def tracking_loop(
-    capture,
-    cotracker,
-    gd,
-    io_options,
     frames_since_rst,
     is_first_step,
-    last_coord,
     sensor_coord,
-    max_img_size,
     rst_interval,
     bb_check_interval,
-    window_size,
+    frame_tensor,
+    frame_tensor_norm,
+    gd,
+    cotracker,
     target_color,
-    send_to_board,
+    scale,
     width,
     height,
-    no_prediction_size,
+    no_prediction_size
 ):
-    """
-    Execute one iteration of the tracking loop.
+    """Execute the core tracking logic for one frame.
 
     Returns:
-        tuple: (frames_since_rst, is_first_step, last_coord, sensor_coord, should_continue)
-               should_continue is False if the loop should break
+        tuple: (frames_since_rst, is_first_step, sensor_coord, normalized_coord)
     """
-    # Capture new frame
-    ret, frame = capture.read()
-
-    # If the frame was not read successfully, break the loop
-    if not ret:
-        print("Error: Could not read frame. Exiting...")
-        return frames_since_rst, is_first_step, last_coord, sensor_coord, False
-
-    # Convert BGR to RGB
-    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-    # Get preprocessed frames
-    frame_tensor_norm, frame_tensor, scale = utils.preprocess_frame(
-        frame_rgb, max_img_size
-    )
-
     if frames_since_rst >= rst_interval or is_first_step:
         # Force reset state
         # Run full tracking workflow
         box, _, _ = gd.detect(frame_tensor)
 
         if box.size() == no_prediction_size:
-            return 0, True, last_coord, sensor_coord, True
+            return rst_interval + 1, True, None, None
 
         query_point = find_sensor(frame_tensor, box, target_color)
         cotracker.soft_rst(query_point)
@@ -153,7 +147,7 @@ def tracking_loop(
         box, _, _ = gd.detect(frame_tensor)
 
         if box.size() == no_prediction_size:
-            return 0, True, last_coord, sensor_coord, True
+            return rst_interval + 1, True, None, None
 
         # Check that the latest prediction is still in the box
         reset_qp = utils.prediction_in_box(sensor_coord, box)
@@ -166,25 +160,19 @@ def tracking_loop(
             frames_since_rst = 0
 
     sensor_coord, _ = cotracker.run_tracker(frame_tensor_norm)
-    if sensor_coord is None or sensor_coord.shape == torch.Size([1]):
-        sensor_coord = None
+    if sensor_coord is None or (sensor_coord.shape == torch.Size([1])):
+        scaled_coord = None
         normalized_coord = None
     else:
-        scaled_coord = sensor_coord[-1, -1, -1].tolist()
-        sensor_coord = utils.scale_coord(scaled_coord, scale)
+        sensor_coord = sensor_coord[-1, -1, -1].tolist()
+        scaled_coord = utils.scale_coord(sensor_coord, scale)
 
         normalized_coord = normalize_coord(scaled_coord, width, height)
 
     frames_since_rst += 1
 
-    if send_to_board and (sensor_coord is not None) and (sensor_coord != last_coord):
-        utils.send_coord(normalized_coord)
+    return frames_since_rst, is_first_step, scaled_coord, normalized_coord
 
-    io_options.run(sensor_coord, normalized_coord, frame)
-
-    last_coord = sensor_coord
-
-    return frames_since_rst, is_first_step, last_coord, sensor_coord, True
 
 def camera_id_type(value):
     """Convert camera_id to int if possible, otherwise keep as string."""

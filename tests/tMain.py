@@ -9,6 +9,7 @@ class TestMain(unittest.TestCase):
              test_name=test_name,
              print_coord=True,
              send_to_board=True,
+             disp_out=True,
              )
 
     def test_ds_frame(self):
@@ -17,7 +18,6 @@ class TestMain(unittest.TestCase):
         main(src_path,
              test_name=test_name,
              disp_out=True,
-             benchmarking=True,
         )
 
     def test_ds_pan_full(self):
