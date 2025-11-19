@@ -1,6 +1,7 @@
 import torch
 import cv2
 import argparse
+import keyboard
 
 from CoTrackerCORE import CoTrackerCORE
 from DetectionSystem import GroundingDINOCORE, find_sensor
@@ -60,6 +61,10 @@ def main(
     last_coord = None
 
     while True:
+        if keyboard.is_pressed('q'):
+            print("Exiting Loop")
+            break
+
         # Capture new frame
         ret, frame = capture.read()
 
