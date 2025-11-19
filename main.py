@@ -64,6 +64,7 @@ def main(
     while True:
         if keyboard.is_pressed('q'):
             print("Exiting Loop")
+            utils.shutdown()
             break
 
         # Capture new frame
