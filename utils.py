@@ -114,6 +114,8 @@ class IOOptions:
         if not self.benchmarking:
             return
 
+
+
     def bench_CoTracker(self) -> None:
         if not self.benchmarking:
             return
