@@ -71,7 +71,6 @@ def send_coord(sensor_coord) -> None:
         # _servoX.stopPWM()
         # _servoY.stopPWM()
         return
-
     print(sensor_coord)
     trackCoords(_servoX, _servoY, sensor_coord[0], sensor_coord[1])
 

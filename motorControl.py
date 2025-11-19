@@ -7,7 +7,7 @@ FREQUENCY = 50 #Hz
 PERIOD_MS = 1000 / FREQUENCY
 MIN_PULSE_WIDTH_MS = 0.5 # in % duty cycle for 0°
 MAX_PULSE_WIDTH_MS = 2  # in % duty cycle for 180°
-COORD2DEG = 13
+COORD2DEG = 5
 
 # --- Low Level Math Functions (Conversions/Formulas) ---
 
@@ -32,6 +32,7 @@ class servo:
         self.sum = 0
         self.counter = 0
         self.pwm = 0
+        self.pwmEnable = 0
 
     def getPin(self):
         return self.pin
@@ -50,10 +51,10 @@ class servo:
     #     print(f"angle={angle:.2f}°")
 
     #     return angle
-    def servoMove(self, coord, kd=3):
+    def servoMove(self, coord, kd=0.5):
         # PD Controller
-        # angle = (COORD2DEG*coord - kd*COORD2DEG*(coord-self.prev_coord)) + self.prev_angle
-        angle = COORD2DEG*coord+self.prev_angle
+        angle = (COORD2DEG*coord - kd*COORD2DEG*(coord-self.prev_coord)) + self.prev_angle
+        # angle = COORD2DEG*coord+self.prev_angle
         # Clamp camera servo to 90-180
         if(self.pin==32):
             angle = (max(80,min(140,angle)))
@@ -84,7 +85,6 @@ class servo:
 
         # Rotate the motor to a specific angle. (immediate, no decay)
     def setServoGivenPulseMS(self, pulsems):
-        GPIO.setmode(GPIO.BOARD)
         GPIO.setup(self.pin, GPIO.OUT, initial=GPIO.HIGH)
         pwm = GPIO.PWM(self.pin, FREQUENCY)
         
@@ -95,42 +95,51 @@ class servo:
         GPIO.cleanup()
         print("Set servo to ", 45, " deg.")
 
-    # def startPWM(self, angle):
-    #     GPIO.setmode(GPIO.BOARD)
-    #     GPIO.setup(self.pin, GPIO.OUT, initial=GPIO.HIGH)
-    #     self.pwm = GPIO.PWM(self.pin, FREQUENCY)
-    #     self.pwm.start(pulse_to_duty(angle_to_pulse(angle)))
-    # def stopPWM(self):
-    #     if(self.pwm != 0):
-    #         self.pwm.stop()
-    #         GPIO.cleanup()
-def trackCoords(servoX, servoY, dx, dy):
-    # s1Angle = servoX.servoMove(dx)
-    # s2Angle = servoY.servoMove(dy)
-    # servoX.startPWM(s1Angle)
-    # servoY.startPWM(s2Angle)
-    pin1 = servoX.getPin()
-    pin2 = servoY.getPin()
+    def startPWM(self, angle):
+        if(self.pwmEnable == 0):
+            self.pwm = GPIO.PWM(self.pin, FREQUENCY)
+            self.pwm.start(pulse_to_duty(angle_to_pulse(angle)))
+            self.pwmEnable = 1
+        elif(self.pwmEnable == 1):
+            self.pwm.ChangeDutyCycle(pulse_to_duty(angle_to_pulse(angle)))
 
+    def stopPWM(self):
+        if(self.pwmEnable == 1):
+            self.pwm.stop()
+            self.pwmEnable = 0
+            
+def trackCoords(servoX, servoY, dx, dy):
     s1Angle = servoX.servoMove(dx)
     s2Angle = servoY.servoMove(dy)
-    GPIO.setmode(GPIO.BOARD)
-
-    GPIO.setup(pin1, GPIO.OUT, initial=GPIO.HIGH)
-    pwm1 = GPIO.PWM(pin1, FREQUENCY)
-    pwm1.start(pulse_to_duty(angle_to_pulse(s1Angle)))
     
-    GPIO.setup(pin2, GPIO.OUT, initial=GPIO.HIGH)
-    pwm2 = GPIO.PWM(pin2, FREQUENCY)
-    pwm2.start(pulse_to_duty(angle_to_pulse(s2Angle)))
+    if(dx == None or dy == None):
+        servoX.stopPWM()
+        servoY.stopPWM()
+        GPIO.cleanup()
+    else:
+        GPIO.setmode(GPIO.BOARD)
+        servoX.startPWM(s1Angle)
+        servoY.startPWM(s2Angle)
+    # pin1 = servoX.getPin()
+    # pin2 = servoY.getPin()
 
-    time.sleep(0.1)
+    # s1Angle = servoX.servoMove(dx)
+    # s2Angle = servoY.servoMove(dy)
+    # GPIO.setmode(GPIO.BOARD)
+
+    # GPIO.setup(pin1, GPIO.OUT, initial=GPIO.HIGH)
+    # pwm1 = GPIO.PWM(pin1, FREQUENCY)
+    # pwm1.start(pulse_to_duty(angle_to_pulse(s1Angle)))
     
-    pwm1.stop()
-    pwm2.stop()
-    GPIO.cleanup()
-    # elif(servoX.counter==8):
-    #     servoX.counter = 0
+    # GPIO.setup(pin2, GPIO.OUT, initial=GPIO.HIGH)
+    # pwm2 = GPIO.PWM(pin2, FREQUENCY)
+    # pwm2.start(pulse_to_duty(angle_to_pulse(s2Angle)))
+
+    # time.sleep(0.1)
+    
+    # pwm1.stop()
+    # pwm2.stop()
+    # GPIO.cleanup()
         
     
 
@@ -201,33 +210,3 @@ def trackCoords(servoX, servoY, dx, dy):
 # out.release()
 
 # print("Recording stopped and saved")
-
-
-
-
-# cameraServo.setServo(170)
-# cameraServo.setServo(160)
-# cameraServo.setServo(150)
-# cameraServo.setServo(140)
-# cameraServo.setServo(130)
-# cameraServo.setServo(120)
-# baseServo.setServo(120)
-
-
-# cameraServo.setServoGivenPulseMS(400)
-# baseServo.setServoGivenPulseMS(400)
-# baseServo.setServo(0)
-
-#for i in range(100):
-#    trackCoords(baseServo, cameraServo, 1, 1)
-
-
-# servo.servoMoveExp(32, 1)
-# servo.servoMoveExp(32, .8)
-# servo.servoMoveExp(32, .2)
-# servo.servoMoveExp(32, .001)
-# servo.servoMoveExp(32, -1)
-# servo.servoMoveExp(32, -.8)
-# servo.servoMoveExp(32, -.2)
-# servo.servoMoveExp(32, 0)
-# servo.servoMoveExp(32, 0)
