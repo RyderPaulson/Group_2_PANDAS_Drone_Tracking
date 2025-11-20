@@ -78,6 +78,16 @@ def shutdown():
     _servoX.stopPWM()
     _servoY.stopPWM()
 
+def reset():
+    _servoX.stopPWM()
+    _servoY.stopPWM()
+    _servoX.setServo(90)
+    _servoY.setServo(90)
+    _servoX.prev_angle = 90
+    _servoX.prev_coord = 0
+    _servoY.prev_angle = 90
+    _servoY.prev_coord = 0
+
 def scale_coord(coord, factor):
     return [int(factor*coord[0]), int(factor*coord[1])]
 

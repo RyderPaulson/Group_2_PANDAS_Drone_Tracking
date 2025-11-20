@@ -66,7 +66,10 @@ def main(
             print("Exiting Loop")
             utils.shutdown()
             break
-
+        elif keyboard.is_pressed('r'):
+            print("Resetting")
+            utils.reset()
+            
         # Capture new frame
         ret, frame = capture.read()
 

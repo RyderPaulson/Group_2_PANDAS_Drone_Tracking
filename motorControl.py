@@ -8,7 +8,7 @@ PERIOD_MS = 1000 / FREQUENCY
 MIN_PULSE_WIDTH_MS = 0.5 # in % duty cycle for 0°
 MAX_PULSE_WIDTH_MS = 2  # in % duty cycle for 180°
 COORD2DEGX = 10
-COORD2DEGY = 6.5
+COORD2DEGY = 5
 
 # --- Low Level Math Functions (Conversions/Formulas) ---
 
@@ -55,12 +55,12 @@ class servo:
     def servoMove(self, coord, kd=0.4):
         if(self.pin==32):
             # PD Controller
-            angle = (COORD2DEGY*coord - 0.4*COORD2DEGY*(coord-self.prev_coord)) + self.prev_angle
+            angle = (COORD2DEGY*coord - 0.8*COORD2DEGY*(coord-self.prev_coord)) + self.prev_angle
             angle = (max(50,min(160,angle)))
 
         # Clamp base servo to 0-180
         else:
-            angle = (COORD2DEGX*coord - 0.8*COORD2DEGX*(coord-self.prev_coord)) + self.prev_angle
+            angle = (COORD2DEGX*coord - 2*COORD2DEGX*(coord-self.prev_coord)) + self.prev_angle
             angle = (max(0,min(180,angle)))
 
         self.prev_coord = coord
@@ -183,7 +183,7 @@ def trackCoords(servoX, servoY, dx, dy):
 cameraServo = servo(32)
 baseServo = servo(33)
 
-# cameraServo.setServo(90)
+cameraServo.setServo(90)
 baseServo.setServo(90)
 
 # [trackCoords(cameraServo, baseServo, i, 0) for i in np.arange(0, 1, 0.01)]
