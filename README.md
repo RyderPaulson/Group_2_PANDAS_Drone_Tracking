@@ -30,10 +30,13 @@ cd co-tracker
 pip install -e .
 pip install matplotlib flow_vis tqdm tensorboard
 mkdir weights
+cd weights
 # download the online (multi window) model
 wget https://huggingface.co/facebook/cotracker3/resolve/main/scaled_online.pth
 # download the online (sliding window) model
 wget https://huggingface.co/facebook/cotracker3/resolve/main/baseline_online.pth
+cd ..
+cd ..
 ```
 
 5. Clone and install GroundingDINO.
@@ -41,11 +44,19 @@ wget https://huggingface.co/facebook/cotracker3/resolve/main/baseline_online.pth
 ```
 git clone https://github.com/IDEA-Research/GroundingDINO.git
 cd GroundingDINO
+```
+
+6. Implement [this change](https://github.com/IDEA-Research/GroundingDINO/pull/415) from GroundingDINO
+7. Finish the install of GroundingDINO
+
+```
 pip install -e .
 mkdir weights
 cd weights
 wget -q https://github.com/IDEA-Research/GroundingDINO/releases/download/v0.1.0-alpha/groundingdino_swint_ogc.pth
 ```
+
+
 
 6. Download the tiny weights from our Google Drive [groundingdino_swint_ogc](https://drive.google.com/file/d/1JuvtEhrE4oPX_5h5dwdAwMy35T0FAJLR/view?usp=drive_link) into the weights folder.
 7. Uninstall PyTorch and bundled packages.
